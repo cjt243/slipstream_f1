@@ -2,7 +2,7 @@
 
 ## Context
 
-Building a Phase 1 MVP for an F1 Fantasy League app (Grid Rivals clone). The repo currently has only documentation (CLAUDE.md, LEAGUE_MECHANICS.md), a style guide JSX reference, and a Turso/SQLAlchemy spike. No server or client code exists yet.
+Building a Phase 1 MVP for the Slipstream F1 Fantasy League app. The repo currently has only documentation (CLAUDE.md, LEAGUE_MECHANICS.md), a style guide JSX reference, and a Turso/SQLAlchemy spike. No server or client code exists yet.
 
 **Goal:** Break the MVP into modular, parallelizable issues so two devs (one backend-focused, one frontend-focused) can work independently with minimal blocking.
 

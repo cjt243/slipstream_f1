@@ -6,7 +6,7 @@ This file is the source of truth for Claude when working on this project. Read i
 
 ## Project Overview
 
-We are building an F1 Fantasy League web application — a mobile-first, responsive web app that clones and improves upon [Grid Rivals](https://www.gridrivalsgame.com/). The goal is a clean, fast, cheap-to-run product with better UX and features than Grid Rivals currently offers.
+We are building an F1 Fantasy League web application — a mobile-first, responsive web app. The goal is a clean, fast, cheap-to-run product with great UX and deep fantasy F1 features.
 
 **Core principles:**
 - Simplicity over cleverness
@@ -58,7 +58,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 
 ---
 
-## Game Rules & Scoring (Grid Rivals Clone)
+## Game Rules & Scoring
 
 See [LEAGUE_MECHANICS.md](LEAGUE_MECHANICS.md) for complete scoring rules, contract mechanics, team composition (5 drivers + 1 constructor), and salary adjustment algorithm.
 
@@ -75,7 +75,7 @@ See [LEAGUE_MECHANICS.md](LEAGUE_MECHANICS.md) for complete scoring rules, contr
 - [ ] Leaderboard per race + season total
 - [ ] Default league seeded at setup (single-league for now)
 
-### Phase 2 — Improvements over Grid Rivals
+### Phase 2 — Enhancements
 - [ ] Live score updates during race weekends (immediately post-session)
 - [ ] A deeper focus on each weekend - a dedicated "Race" view that focuses on qualifying stats, team lineups, and a Race weekend "winner" - similar to how fantasy football is very week to week focused
 - [ ] Notifications related to deadlines for lineup locking, star drivers
