@@ -22,7 +22,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 | Layer | Choice | Reason |
 |---|---|---|
 | Frontend | React (Vite) | Fast dev, Claude-friendly, mobile-responsive |
-| Backend | Node.js + Express | Lightweight, simple REST API |
+| Backend | Flask + SQLAlchemy | Python backend, ORM over Turso via sqlalchemy-libsql |
 | Database | Turso (LibSQL/SQLite) | Free tier, edge-ready, simple schema |
 | Hosting | DigitalOcean App Platform | Simple GitHub deploy, affordable |
 | Styling | Tailwind CSS | Utility-first, great for mobile layouts |
@@ -42,11 +42,11 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── index.html
 │   └── vite.config.js
 │
-├── server/                  # Express backend
-│   ├── routes/              # API route handlers
-│   ├── db/                  # Turso client + queries
+├── server/                  # Flask backend
+│   ├── routes/              # API route handlers (blueprints)
+│   ├── models/              # SQLAlchemy models
 │   ├── middleware/           # Auth, error handling
-│   └── index.js             # Entry point
+│   └── app.py               # Entry point
 │
 ├── CLAUDE.md                # This file
 ├── .env.example             # Required env vars (no secrets)
@@ -200,26 +200,29 @@ VITE_API_URL=http://localhost:3001/api
 
 1. Claude reads this file at the start of every session
 2. Pick one feature from the Phase 1 checklist
-3. Build it end-to-end: schema → API route → React component
+3. Build it end-to-end: model → API route → React component
 4. Test manually, then move to the next feature
 5. Never over-engineer — if it works simply, ship it
+6. Always use `uv run` for Python — never use `pip` or `python3` directly
 
 ---
 
 ## Coding Conventions
 
-- Use `async/await` everywhere — no raw `.then()` chains
-- Express routes stay thin — logic lives in `/db` query files
+- Flask routes stay thin — logic lives in model/query functions
+- Use SQLAlchemy 2.0 style (DeclarativeBase, Session context managers)
 - React: functional components + hooks only
 - Tailwind for all styling — no custom CSS unless unavoidable
 - Keep components small and single-purpose
 - Name DB query functions descriptively: `getUserLeagues()`, `lockTeamSelection()`
+- Use `uv run` for all Python execution — never bare `pip` or `python3`
 
 ---
 
 ## Notes for Claude
 
 - Always read this file before writing any code in a session
+- SQLAlchemy + Turso spike passed (see `spike/turso_sqlalchemy/`) — local libSQL works, remote Turso untested
 - When completing a Phase 1 feature, check it off the roadmap above
 - If the schema changes, update the schema section here too
 - Prefer editing existing files over creating new ones
