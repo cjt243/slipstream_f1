@@ -52,7 +52,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 ├── CLAUDE.md                # This file
 ├── LEAGUE_MECHANICS.md      # Full scoring rules & game mechanics
 ├── slipstream-style-guide-v1.jsx  # UI design reference
-├── .env.example             # Required env vars (no secrets)
+├── .env.example             # Required env vars (TODO: create this file)
 └── package.json             # Client scripts (dev, build)
 ```
 
@@ -60,16 +60,9 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 
 ## Game Rules & Scoring (Grid Rivals Clone)
 
-We mirror Grid Rivals' [scoring and rules system](LEAGUE_MECHANICS.md)
+See [LEAGUE_MECHANICS.md](LEAGUE_MECHANICS.md) for complete scoring rules, contract mechanics, team composition (5 drivers + 1 constructor), and salary adjustment algorithm.
 
-### Team Composition
-- Each player picks **1 constructor** and **5 drivers** per race weekend (on a contract system)
-- Budget cap applies — players cannot exceed their team's budget
-### Scoring Events (per race weekend)
-- Sprint (if applicable)
-- Qualifying (only for the main race, not sprint races)
-- Race
-  
+
 ---
 
 ## Features — Phased Roadmap
@@ -186,7 +179,6 @@ cd client && npm install && npm run dev
 3. Build it end-to-end: model → API route → React component
 4. Test manually, then move to the next feature
 5. Never over-engineer — if it works simply, ship it
-6. Always use `uv run` for Python — never use `pip` or `python3` directly
 
 ---
 
