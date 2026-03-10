@@ -30,7 +30,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 ---
 
 ## Project Structure
-```
+```text (planned — not yet created)
 /
 ├── client/                  # React frontend (Vite)
 │   ├── src/
@@ -46,11 +46,14 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── routes/              # API route handlers (blueprints)
 │   ├── models/              # SQLAlchemy models
 │   ├── middleware/           # Auth, error handling
-│   └── app.py               # Entry point
+│   ├── app.py               # Entry point
+│   └── pyproject.toml       # Python dependencies
 │
 ├── CLAUDE.md                # This file
+├── LEAGUE_MECHANICS.md      # Full scoring rules & game mechanics
+├── slipstream-style-guide-v1.jsx  # UI design reference
 ├── .env.example             # Required env vars (no secrets)
-└── package.json             # Root scripts (dev, build, deploy)
+└── package.json             # Client scripts (dev, build)
 ```
 
 ---
@@ -157,8 +160,8 @@ Single-league design: all endpoints implicitly scoped to the default league.
 
 ## Environment Variables
 ```
-PORT=3001
-JWT_SECRET=your_secret_here
+FLASK_PORT=3001
+FLASK_SECRET_KEY=your_secret_here
 TURSO_DATABASE_URL=libsql://your-db.turso.io
 TURSO_AUTH_TOKEN=your_token_here
 
@@ -168,6 +171,15 @@ VITE_API_URL=http://localhost:3001/api
 ---
 
 ## Development Workflow
+
+### Quick Start
+```bash
+# Backend (Flask)
+cd server && uv run flask run --port 3001
+
+# Frontend (React/Vite)
+cd client && npm install && npm run dev
+```
 
 1. Claude reads this file at the start of every session
 2. Pick one feature from the Phase 1 checklist
@@ -185,7 +197,7 @@ VITE_API_URL=http://localhost:3001/api
 - React: functional components + hooks only
 - Tailwind for all styling — no custom CSS unless unavoidable
 - Keep components small and single-purpose
-- Name DB query functions descriptively: `getUserLeagues()`, `lockTeamSelection()`
+- Name DB query functions descriptively: `get_user_leagues()`, `lock_team_selection()`
 - Use `uv run` for all Python execution — never bare `pip` or `python3`
 
 ---
