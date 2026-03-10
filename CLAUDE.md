@@ -57,14 +57,16 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 
 ## Game Rules & Scoring (Grid Rivals Clone)
 
-We mirror Grid Rivals' scoring system - this is a TBD.
+We mirror Grid Rivals' [scoring and rules system](LEAGUE_MECHANICS.md)
 
 ### Team Composition
 - Each player picks **1 constructor** and **5 drivers** per race weekend (on a contract system)
 - Budget cap applies — players cannot exceed their team's budget
 ### Scoring Events (per race weekend)
-- TBD - details to be sourced from GridRival
-
+- Sprint (if applicable)
+- Qualifying (only for the main race, not sprint races)
+- Race
+  
 ---
 
 ## Features — Phased Roadmap
@@ -78,17 +80,15 @@ We mirror Grid Rivals' scoring system - this is a TBD.
 - [ ] Leaderboard per race + season total
 
 ### Phase 2 — Improvements over Grid Rivals
-- [ ] Live score updates during race weekends
-- [ ] Head-to-head matchup mode (not just standings)
-- [ ] Transfer window between races
-- [ ] Push notifications for score updates
-- [ ] Historical season stats per player
-- [ ] Public leagues + private invite-only leagues
+- [ ] Live score updates during race weekends (immediately post-session)
+- [ ] A deeper focus on each weekend - a dedicated "Race" view that focuses on qualifying stats, team lineups, and a Race weekend "winner" - similar to how fantasy football is very week to week focused
+- [ ] Notifications related to deadlines for lineup locking, star drivers
+- [ ] Minimum points threshold for teams that forget to set their lineup
 
 ### Phase 3 — Polish
-- [ ] Mobile PWA (installable)
 - [ ] Animated score reveals post-race
-- [ ] Social sharing of team/results
+- [ ] Potentially a post-weekend graphic that shows how fantasy teams trended throughout the weekend events by total points scored (line chart that accumulates points by fantasy team)
+- [ ] Weekly team move summaries once lineups lock
 
 ---
 
@@ -98,7 +98,6 @@ CREATE TABLE users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   username TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
