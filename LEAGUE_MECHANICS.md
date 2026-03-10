@@ -1,4 +1,4 @@
-# GridRival Fantasy Racing — Comprehensive Scoring & Mechanics Reference
+# Fantasy Racing — Comprehensive Scoring & Mechanics Reference
 > Optimized for LLM coding agents. All point values, rules, and conditions are stated explicitly and completely.
 
 ---
