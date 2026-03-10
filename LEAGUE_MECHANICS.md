@@ -1,4 +1,4 @@
-# Fantasy Racing — Comprehensive Scoring & Mechanics Reference
+# GridRival Fantasy Racing — Comprehensive Scoring & Mechanics Reference
 > Optimized for LLM coding agents. All point values, rules, and conditions are stated explicitly and completely.
 
 ---
@@ -464,3 +464,233 @@ def calculate_completion_points(laps_completed, total_laps):
 - **Salary changes are real-time during contract:** The gain/loss in salary value is reflected in your bank balance as it occurs during the season, not just at contract end.
 - **Team value floor ($100M) is a floor on total team value**, not on bank balance alone.
 - **One-Race-Interval Rule applies after ANY departure** — voluntary release or contract expiry.
+
+---
+
+## 11. CONSTRUCTOR SCORING (F1 Only)
+
+Constructors are scored separately from drivers. A constructor slot on your team earns points based on the constructor's aggregate qualifying and race performance. Constructor scoring uses different (lower) point scales than driver scoring.
+
+### 11.1 Constructor Qualifying Points
+
+Awarded based on the constructor's combined qualifying result (best of their two drivers, or aggregate — exact aggregation method not specified in screenshots, but position shown is a single ranked position 1st–18th+).
+
+| Position | Points |
+|----------|--------|
+| 1st | 30 |
+| 2nd | 29 |
+| 3rd | 28 |
+| 4th | 27 |
+| 5th | 26 |
+| 6th | 25 |
+| 7th | 24 |
+| 8th | 23 |
+| 9th | 22 |
+| 10th | 21 |
+| 11th | 20 |
+| 12th | 19 |
+| 13th | 18 |
+| 14th | 17 |
+| 15th | 16 |
+| 16th | 15 |
+| 17th | 14 |
+| 18th | 13 |
+
+**Pattern:** 1st = 30 pts, decrements by 1 per position.
+
+### 11.2 Constructor Race Points
+
+Awarded based on the constructor's combined race result position.
+
+| Position | Points |
+|----------|--------|
+| 1st | 60 |
+| 2nd | 58 |
+| 3rd | 56 |
+| 4th | 54 |
+| 5th | 52 |
+| 6th | 50 |
+| 7th | 48 |
+| 8th | 46 |
+| 9th | 44 |
+| 10th | 42 |
+| 11th | 40 |
+| 12th | 38 |
+| 13th | 36 |
+| 14th | 34 |
+| 15th | 32 |
+| 16th | 30 |
+| 17th | 28 |
+| 18th | 26 |
+| 19th | 24 |
+| 20th | 22 |
+| 21st | 20 |
+| 22nd | 18 |
+
+**Pattern:** 1st = 60 pts, decrements by 2 per position down to 22nd (18 pts).
+
+### 11.3 Constructor vs. Driver Scoring Comparison
+
+| Category | Driver Max | Constructor Max |
+|----------|-----------|----------------|
+| Qualifying | 50 (P1) | 30 (P1) |
+| Race | 100 (P1) | 60 (P1) |
+| Sprint | 22 (P1) | N/A (not shown) |
+| Overtake Points | Yes (+3/pos) | N/A |
+| Improvement Points | Yes (up to 30) | N/A |
+| Beating Teammate | Yes (up to 12) | N/A |
+| Completion | Yes (up to 12) | N/A |
+
+Constructors score only on qualifying and race finish position. They do not earn Overtake, Improvement, Beating Teammate, or Completion points.
+
+---
+
+## 12. SALARY ADJUSTMENT ALGORITHM (Detailed)
+
+This section documents the exact mechanics by which element salaries change after each race event. Salaries are denominated in £ (GBP) in the app, regardless of the fantasy budget denomination used in leagues.
+
+### 12.1 Three-Step Salary Adjustment Process
+
+**Step 1: Rank elements by fantasy points earned in the event**
+After each event, all elements (drivers separately, constructors separately) are ranked by the total fantasy points they earned during that event. Rank 1 = highest scorer.
+
+**Step 2: Calculate base salary variation**
+Look up the element's new rank in the Default Salary Table (see sections 12.3 and 12.4). The base salary variation = (Default Salary at new rank) − (Element's current salary before the race).
+
+- Positive variation = element performed better than their current salary implies → salary should increase
+- Negative variation = element performed worse → salary should decrease
+
+**Step 3: Apply adjustment formula**
+```
+adjustment = floor(base_salary_variation / 4, nearest_100k)
+new_salary = current_salary + adjustment
+```
+
+Constraints:
+- **Driver maximum adjustment:** ±£2,000,000 per event
+- **Constructor maximum adjustment:** ±£3,000,000 per event
+- **Minimum adjustment (both):** ±£100,000 (i.e., if |base_variation / 4| < £100k, still move by £100k in the correct direction)
+- Rounding: round **down** to the nearest £100,000
+
+### 12.2 Worked Example (from app)
+
+| Step | Value |
+|------|-------|
+| 1. Driver salary before the race | £15,800,000 |
+| 2. Driver's fantasy rank for the race | 8th |
+| 3. Default salary for 8th rank (from table) | £22,800,000 |
+| 4. Base salary variation (step 3 − step 1) | +£7,000,000 |
+| 5. Adjustment = £7.0M ÷ 4 (rounded down to nearest £100k) | +£1,700,000 |
+| 6. New salary after the race | £17,500,000 |
+
+### 12.3 Default Driver Salary Table
+
+Used as the reference point in Step 2 of salary adjustment. Rank is determined by fantasy points earned in the event.
+
+| Fantasy Rank | Default Salary |
+|-------------|---------------|
+| 1st | £34,000,000 |
+| 2nd | £32,400,000 |
+| 3rd | £30,800,000 |
+| 4th | £29,200,000 |
+| 5th | £27,600,000 |
+| 6th | £26,000,000 |
+| 7th | £24,400,000 |
+| 8th | £22,800,000 |
+| 9th | £21,200,000 |
+| 10th | £19,600,000 |
+| 11th | £18,000,000 |
+| 12th | £16,400,000 |
+| 13th | £14,800,000 |
+| 14th | £13,200,000 |
+| 15th | £11,600,000 |
+| 16th | £10,000,000 |
+| 17th | £8,400,000 |
+| 18th | £6,800,000 |
+| 19th | £5,200,000 |
+| 20th | £3,600,000 |
+| 21st | £2,000,000 |
+| 22nd | £400,000 |
+
+**Pattern:** 1st = £34M, decrements by £1,600,000 per rank. 22nd = £400,000 (floor).
+
+### 12.4 Default Constructor Salary Table
+
+| Fantasy Rank | Default Salary |
+|-------------|---------------|
+| 1st | £30,000,000 |
+| 2nd | £27,400,000 |
+| 3rd | £24,800,000 |
+| 4th | £22,200,000 |
+| 5th | £19,600,000 |
+| 6th | £17,000,000 |
+| 7th | £14,400,000 |
+| 8th | £11,800,000 |
+| 9th | £9,200,000 |
+| 10th | £6,600,000 |
+| 11th | £4,000,000 |
+
+**Pattern:** 1st = £30M, decrements by £2,600,000 per rank. 11th (last constructor) = £4,000,000.
+
+### 12.5 Season-Start Salaries
+
+- All elements begin the season with a **manually calculated starting salary**
+- Based on: prior season's performance + pre-season testing results + projected performance
+- Starting salaries are NOT generated by the default salary table formula — they are set by GridRival staff
+
+### 12.6 Salary Adjustment Pseudocode
+
+```python
+DRIVER_DEFAULT_SALARY = {
+    1: 34_000_000, 2: 32_400_000, 3: 30_800_000, 4: 29_200_000,
+    5: 27_600_000, 6: 26_000_000, 7: 24_400_000, 8: 22_800_000,
+    9: 21_200_000, 10: 19_600_000, 11: 18_000_000, 12: 16_400_000,
+    13: 14_800_000, 14: 13_200_000, 15: 11_600_000, 16: 10_000_000,
+    17: 8_400_000, 18: 6_800_000, 19: 5_200_000, 20: 3_600_000,
+    21: 2_000_000, 22: 400_000
+}
+
+CONSTRUCTOR_DEFAULT_SALARY = {
+    1: 30_000_000, 2: 27_400_000, 3: 24_800_000, 4: 22_200_000,
+    5: 19_600_000, 6: 17_000_000, 7: 14_400_000, 8: 11_800_000,
+    9: 9_200_000, 10: 6_600_000, 11: 4_000_000
+}
+
+def calculate_salary_adjustment(current_salary, fantasy_rank, element_type='driver'):
+    salary_table = DRIVER_DEFAULT_SALARY if element_type == 'driver' else CONSTRUCTOR_DEFAULT_SALARY
+    max_adjustment = 2_000_000 if element_type == 'driver' else 3_000_000
+    min_adjustment = 100_000
+
+    default_salary = salary_table[fantasy_rank]
+    base_variation = default_salary - current_salary
+
+    # Divide by 4, round down to nearest 100k
+    raw_adjustment = base_variation / 4
+    adjustment = int(raw_adjustment / 100_000) * 100_000  # floor to nearest 100k
+
+    # Apply cap
+    if abs(adjustment) > max_adjustment:
+        adjustment = max_adjustment if adjustment > 0 else -max_adjustment
+
+    # Apply floor (minimum movement if any change is warranted)
+    if adjustment == 0 and base_variation != 0:
+        adjustment = min_adjustment if base_variation > 0 else -min_adjustment
+
+    return current_salary + adjustment
+```
+
+---
+
+## 13. UPDATED SCORING SUMMARY TABLE (All Element Types)
+
+| Category | Drivers | Constructors |
+|----------|---------|-------------|
+| Qualifying Position | P1=50, -2/pos to P22=8 | P1=30, -1/pos to P18=13 |
+| Race Position | P1=100, -3/pos to P22=37 | P1=60, -2/pos to P22=18 |
+| Sprint Position | P1=22, -1/pos | N/A |
+| Overtake Points | +3 per position gained vs. quali | N/A |
+| Improvement Points | 0–30 based on vs. 8-race avg | N/A |
+| Beating Teammate | 2/5/8/12 based on margin | N/A |
+| Completion | 3 pts each at 25/50/75/90% | N/A |
+| Salary Adjustment Cap | ±£2M per event | ±£3M per event |
+| Salary Adjustment Min | ±£100k per event | ±£100k per event |
