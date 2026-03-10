@@ -73,11 +73,11 @@ We mirror Grid Rivals' [scoring and rules system](LEAGUE_MECHANICS.md)
 
 ### Phase 1 — MVP (build first)
 - [ ] User auth (magic links)
-- [ ] League creation & invite codes
 - [ ] Driver + constructor roster (seeded from static data)
-- [ ] Team selection UI (budget-constrained picker)
+- [ ] Contract signing UI (budget-constrained, 1–5 race contracts)
 - [ ] Race weekend scoring engine
 - [ ] Leaderboard per race + season total
+- [ ] Default league seeded at setup (single-league for now)
 
 ### Phase 2 — Improvements over Grid Rivals
 - [ ] Live score updates during race weekends (immediately post-session)
@@ -94,92 +94,64 @@ We mirror Grid Rivals' [scoring and rules system](LEAGUE_MECHANICS.md)
 
 ## Database Schema (Initial)
 ```sql
-CREATE TABLE users (
-  id TEXT PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  username TEXT UNIQUE NOT NULL,
-  created_at TEXT DEFAULT (datetime('now'))
-);
+-- Core entities
+CREATE TABLE users ( ... );                -- id, email, username
+CREATE TABLE leagues ( ... );              -- id, name, invite_code, owner_id
+CREATE TABLE league_members ( ... );       -- league_id, user_id, bank_balance
 
-CREATE TABLE leagues (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  invite_code TEXT UNIQUE NOT NULL,
-  owner_id TEXT REFERENCES users(id),
-  created_at TEXT DEFAULT (datetime('now'))
-);
+-- F1 reference data
+CREATE TABLE drivers ( ... );              -- id, name, constructor_id, salary, season
+CREATE TABLE constructors ( ... );         -- id, name, salary, season
+CREATE TABLE races ( ... );                -- id, season, round, name, total_laps, has_sprint, lockdown_at
 
-CREATE TABLE league_members (
-  league_id TEXT REFERENCES leagues(id),
-  user_id TEXT REFERENCES users(id),
-  PRIMARY KEY (league_id, user_id)
-);
+-- Contracts (replaces team_selections)
+CREATE TABLE contracts ( ... );            -- id, user_id, league_id, element_type, element_id,
+                                           -- race_start, contract_length, signed_salary, released_early
 
-CREATE TABLE drivers (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  team TEXT NOT NULL,
-  price INTEGER NOT NULL,
-  season INTEGER NOT NULL
-);
+-- Results (separate tables for driver & constructor, with full detail)
+CREATE TABLE driver_results ( ... );       -- race_id, driver_id, quali_pos, sprint_pos, race_pos,
+                                           -- laps_completed, dnf
+CREATE TABLE constructor_results ( ... );  -- race_id, constructor_id, quali_pos, race_pos
 
-CREATE TABLE constructors (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  price INTEGER NOT NULL,
-  season INTEGER NOT NULL
-);
+-- Scoring (broken down by category per element per race)
+CREATE TABLE driver_scores ( ... );        -- race_id, driver_id, quali_pts, sprint_pts, race_pts,
+                                           -- overtake_pts, improvement_pts, teammate_pts, completion_pts
+CREATE TABLE constructor_scores ( ... );   -- race_id, constructor_id, quali_pts, race_pts
 
-CREATE TABLE team_selections (
-  id TEXT PRIMARY KEY,
-  user_id TEXT REFERENCES users(id),
-  league_id TEXT REFERENCES leagues(id),
-  race_id TEXT NOT NULL,
-  driver_ids TEXT NOT NULL,      -- JSON array of 5 driver IDs
-  constructor_id TEXT REFERENCES constructors(id),
-  locked INTEGER DEFAULT 0,      -- 1 = locked after qualifying
-  created_at TEXT DEFAULT (datetime('now'))
-);
+-- Fantasy scores (per user per league per race)
+CREATE TABLE fantasy_scores ( ... );       -- user_id, league_id, race_id, total_points
 
-CREATE TABLE race_results (
-  id TEXT PRIMARY KEY,
-  race_id TEXT NOT NULL,
-  driver_id TEXT REFERENCES drivers(id),
-  position INTEGER,
-  fastest_lap INTEGER DEFAULT 0,
-  dnf INTEGER DEFAULT 0,
-  dotd INTEGER DEFAULT 0,
-  overtakes INTEGER DEFAULT 0
-);
-
-CREATE TABLE scores (
-  id TEXT PRIMARY KEY,
-  user_id TEXT REFERENCES users(id),
-  league_id TEXT REFERENCES leagues(id),
-  race_id TEXT NOT NULL,
-  points INTEGER DEFAULT 0
-);
+-- Salary history (track fluctuations for team value calc)
+CREATE TABLE salary_history ( ... );       -- element_type, element_id, race_id, salary_before, salary_after
 ```
+
+See LEAGUE_MECHANICS.md for full scoring rules, contract mechanics, and salary adjustment algorithm.
+Single-league design: a default league is seeded at setup. Schema retains league_id FKs for future multi-league support.
 
 ---
 
 ## API Design
 
 Base URL: `/api`
+Single-league design: all endpoints implicitly scoped to the default league.
 
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/auth/register` | Create account |
 | POST | `/auth/login` | Returns JWT |
-| GET | `/leagues` | Get user's leagues |
-| POST | `/leagues` | Create a league |
-| POST | `/leagues/:id/join` | Join via invite code |
-| GET | `/drivers` | Current season drivers |
-| GET | `/constructors` | Current season constructors |
-| POST | `/selections` | Submit team for a race |
-| GET | `/leaderboard/:leagueId` | Season standings |
-| GET | `/leaderboard/:leagueId/:raceId` | Single race standings |
+| GET | `/drivers` | Current season drivers + salaries |
+| GET | `/constructors` | Current season constructors + salaries |
+| GET | `/races` | Season race schedule |
+| GET | `/races/<id>` | Race detail (laps, sprint, lockdown time) |
+| POST | `/contracts` | Sign element (driver/constructor) with contract length |
+| DELETE | `/contracts/<id>` | Early release (applies 3% penalty) |
+| GET | `/contracts` | Get user's active contracts |
+| GET | `/scores/<race_id>/drivers` | Driver scoring breakdown for a race |
+| GET | `/scores/<race_id>/constructors` | Constructor scoring breakdown for a race |
+| GET | `/leaderboard` | Season standings (with team values) |
+| GET | `/leaderboard/<race_id>` | Single race standings |
 | POST | `/admin/results` | Submit race results (admin only) |
+| POST | `/admin/salary-adjust` | Trigger post-race salary recalc (admin only) |
 
 ---
 
