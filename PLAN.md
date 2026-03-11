@@ -8,6 +8,8 @@ Building a Phase 1 MVP for the Slipstream F1 Fantasy League app. The repo curren
 
 **Key enabler:** A shared API contract document defined upfront lets both sides code against agreed interfaces. Frontend uses mock data until backend is ready.
 
+**Data source:** See [DATA_SOURCES.md](DATA_SOURCES.md) for the complete OpenF1 API mapping. Only 4 endpoints are needed: `/drivers`, `/meetings`, `/sessions`, `/session_result`.
+
 ---
 
 ## Issue Dependency Graph
@@ -97,12 +99,13 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 **Files:** `server/services/openf1.py`, `server/services/seed.py`
 **Depends on:** 1A
 
-- `openf1.py` functions:
+- `openf1.py` functions (see DATA_SOURCES.md §7 for full endpoint mapping):
   - `fetch_drivers(season)` → `/v1/drivers?session_key=latest`, dedupe by driver_number
   - `fetch_constructors(season)` → derived from unique team_name in driver data
   - `fetch_races(season)` → `/v1/meetings?year=` + `/v1/sessions?year=` for details, identify sprints
-  - `fetch_race_results(session_key)` → `/v1/session_result`, `/v1/laps`, overtake data
-- Rate limiting: max 3 req/s
+  - `fetch_race_results(session_key)` → `/v1/session_result` only (provides positions, laps completed, DNF status — no need for `/laps` or `/overtakes` endpoints)
+- Rate limiting: max 3 req/s (3-4 calls per race weekend, ~25 calls for season setup)
+- `total_laps` per race: not available pre-race from OpenF1 — hardcode per circuit in seed data, or backfill from race leader's `number_of_laps` after results ingestion
 - `seed.py`: orchestrates initial seeding — constructors, drivers with hardcoded initial salaries (static table ranked by 2025 standings, defined in `server/data/salaries_2025.py`), races with lockdown times from session start times
 - `server/data/salaries_2025.py`: static dict mapping driver/constructor IDs to initial salary values per the default salary table in LEAGUE_MECHANICS.md
 
