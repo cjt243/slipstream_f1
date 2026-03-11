@@ -26,6 +26,8 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 | Database | Turso (LibSQL/SQLite) | Free tier, edge-ready, simple schema |
 | Hosting | DigitalOcean App Platform | Simple GitHub deploy, affordable |
 | Styling | Tailwind CSS | Utility-first, great for mobile layouts |
+| Auth | Resend (magic links) | Free tier (3k emails/mo), no passwords |
+| F1 Data | OpenF1 API | Free, no auth for historical data, 3 req/s |
 
 ---
 
@@ -45,11 +47,16 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 ├── server/                  # Flask backend
 │   ├── routes/              # API route handlers (blueprints)
 │   ├── models/              # SQLAlchemy models
+│   ├── services/            # Business logic (scoring, contracts, OpenF1, email)
+│   ├── data/                # Static seed data (salaries, circuit laps)
 │   ├── middleware/           # Auth, error handling
 │   ├── app.py               # Entry point
+│   ├── cli.py               # Flask CLI commands (seed, ingest, etc.)
 │   └── pyproject.toml       # Python dependencies
 │
 ├── CLAUDE.md                # This file
+├── PLAN.md                  # MVP build plan with issue breakdown
+├── DATA_SOURCES.md          # OpenF1 API endpoint mapping
 ├── LEAGUE_MECHANICS.md      # Full scoring rules & game mechanics
 ├── slipstream-style-guide-v1.jsx  # UI design reference
 ├── .env.example             # Required env vars (TODO: create this file)
@@ -61,6 +68,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 ## Game Rules & Scoring
 
 See [LEAGUE_MECHANICS.md](LEAGUE_MECHANICS.md) for complete scoring rules, contract mechanics, team composition (5 drivers + 1 constructor), and salary adjustment algorithm.
+See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app features.
 
 
 ---
@@ -91,7 +99,7 @@ See [LEAGUE_MECHANICS.md](LEAGUE_MECHANICS.md) for complete scoring rules, contr
 ## Database Schema (Initial)
 ```sql
 -- Core entities
-CREATE TABLE users ( ... );                -- id, email, username
+CREATE TABLE users ( ... );                -- id, email, username, is_admin
 CREATE TABLE leagues ( ... );              -- id, name, invite_code, owner_id
 CREATE TABLE league_members ( ... );       -- league_id, user_id, bank_balance
 
@@ -133,8 +141,9 @@ Single-league design: all endpoints implicitly scoped to the default league.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/auth/register` | Create account |
-| POST | `/auth/login` | Returns JWT |
+| POST | `/auth/register` | Send magic link to email (creates user if new) |
+| POST | `/auth/login` | Verify magic link token, returns JWT |
+| GET | `/auth/me` | Current user profile + bank balance |
 | GET | `/drivers` | Current season drivers + salaries |
 | GET | `/constructors` | Current season constructors + salaries |
 | GET | `/races` | Season race schedule |
@@ -157,6 +166,9 @@ FLASK_PORT=3001
 FLASK_SECRET_KEY=your_secret_here
 TURSO_DATABASE_URL=libsql://your-db.turso.io
 TURSO_AUTH_TOKEN=your_token_here
+
+RESEND_API_KEY=re_your_key_here
+FRONTEND_URL=http://localhost:5173
 
 VITE_API_URL=http://localhost:3001/api
 ```
