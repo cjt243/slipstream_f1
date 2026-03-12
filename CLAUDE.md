@@ -28,6 +28,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 | Styling | Tailwind CSS | Utility-first, great for mobile layouts |
 | Auth | Resend (magic links) | Free tier (3k emails/mo), no passwords |
 | F1 Data | OpenF1 API | Free, no auth for historical data, 3 req/s |
+| Migrations | Alembic | SQLAlchemy-native schema versioning |
 
 ---
 
@@ -198,6 +199,22 @@ cd client && npm install && npm run dev
 ---
 
 ## Coding Conventions
+
+### Database Migrations (Alembic)
+
+- Alembic is the sole mechanism for schema changes — never use `Base.metadata.create_all()` or `drop_all()` outside of isolated test fixtures
+- `alembic upgrade head` applies all pending migrations; safe to run repeatedly (idempotent)
+- `alembic revision --autogenerate -m "<description>"` generates a migration after editing a model
+- `alembic downgrade -1` rolls back one step — **dev only**, never run in production
+- `alembic downgrade base` wipes all tables — **never run this** unless re-seeding a fresh dev DB, and only after explicit confirmation
+- Migration files live in `server/alembic/versions/` and are committed to git; never edit an already-applied migration
+- Seed scripts (`cli.py seed`) must guard against re-seeding: check for existing rows before inserting, never call `drop_all()` as part of seeding
+
+**Safeguards — rules Claude must follow:**
+1. Never emit `Base.metadata.drop_all()` or `op.drop_table()` in non-test code without an explicit user instruction
+2. Never suggest `alembic downgrade base` unless the user explicitly asks to wipe and re-seed a dev DB
+3. Always generate a new revision file for schema changes — never hand-edit an existing migration
+4. Seed commands must be idempotent (use `INSERT OR IGNORE` / existence checks, not truncate + re-insert)
 
 ### Python / FastAPI
 - Routes stay thin — business logic lives in `services/`, DB queries in `models/`
