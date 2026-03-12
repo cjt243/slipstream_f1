@@ -46,13 +46,15 @@ TIER 4 — Integration
 ## TIER 0: Bootstrapping
 
 ### 0A: Backend Scaffold
-**Files:** `server/pyproject.toml`, `server/app.py`, `server/models/__init__.py`, `server/models/base.py`, `.env.example`
+**Files:** `server/pyproject.toml`, `server/app.py`, `server/dependencies.py`, `server/models/__init__.py`, `server/models/base.py`, `server/schemas/__init__.py`, `.env.example`
 
-- Init `server/` with Flask, flask-cors, flask-jwt-extended, sqlalchemy>=2.0, sqlalchemy-libsql, resend, python-dotenv
-- App factory in `app.py`: CORS, JWT, blueprint registration stubs
+- Init `server/` with fastapi, uvicorn[standard], python-jose[cryptography], passlib[bcrypt], sqlalchemy>=2.0, sqlalchemy-libsql, pydantic>=2.0, resend, python-dotenv, typer
+- `app.py`: FastAPI app instance, CORSMiddleware, APIRouter registration stubs
+- `dependencies.py`: `get_db()` session dependency, `get_current_user()` JWT dependency
 - SQLAlchemy engine factory reading `TURSO_DATABASE_URL` with local SQLite fallback
+- `server/schemas/` directory with `__init__.py` — Pydantic models added here per feature in later issues
 - `GET /api/health` returns `{"status": "ok"}`
-- `uv run flask run --port 3001` works
+- `uv run uvicorn app:app --port 3001 --reload` works
 
 **Reuse:** Engine creation pattern from `spike/turso_sqlalchemy/test_connection.py`
 
@@ -84,12 +86,13 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 ## TIER 1: Core Data + Shell
 
 ### 1A: Database Schema — All Models
-**Files:** `server/models/user.py`, `league.py`, `driver.py`, `constructor.py`, `race.py`, `contract.py`, `results.py`, `scores.py`, `salary_history.py`, `init_db.py`
+**Files:** `server/models/enums.py`, `server/models/user.py`, `league.py`, `driver.py`, `constructor.py`, `race.py`, `contract.py`, `results.py`, `scores.py`, `salary_history.py`, `init_db.py`
 
+- `enums.py`: all shared Python `Enum` types — `ElementType` (driver/constructor), `SessionType` (race/quali/sprint), `ContractStatus` (active/expired/released) — imported everywhere, never use raw strings for typed fields
 - All 13 models using SQLAlchemy 2.0 DeclarativeBase with `Mapped[]` annotations
 - Models: User (includes `is_admin` bool flag), League, LeagueMember, Driver, Constructor, Race, Contract, DriverResult, ConstructorResult, DriverScore, ConstructorScore, FantasyScore, SalaryHistory
 - Relationships: User↔League (M2M via LeagueMember), Driver→Constructor, Contract FKs
-- Contract model: element_type (driver/constructor), element_id, race_start, contract_length, signed_salary, released_early, released_at_race
+- Contract model: `element_type` uses `ElementType` enum, plus element_id, race_start, contract_length, signed_salary, released_early, released_at_race
 - `init_db.py`: creates all tables, seeds default league
 - All monetary values as integers (pennies)
 
@@ -135,9 +138,10 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 ## TIER 2: Feature Verticals
 
 ### 2A: Auth — Magic Link Backend
-**Files:** `server/routes/auth.py`, `server/services/email.py`
+**Files:** `server/routes/auth.py`, `server/services/email.py`, `server/schemas/auth.py`
 **Depends on:** 1A
 
+- `server/schemas/auth.py`: Pydantic models — `RegisterRequest`, `LoginRequest`, `AuthResponse`, `UserResponse`
 - `POST /api/auth/register` — create user + username, send magic link via Resend
 - `POST /api/auth/login` — verify magic link token (15-min expiry), return 7-day JWT + user
 - `GET /api/auth/me` — current user with bank_balance, team_value
@@ -155,9 +159,10 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 - Styled per design system: dark bg, speed cyan accents, Barlow font
 
 ### 2C: Contract Signing — Backend
-**Files:** `server/routes/contracts.py`, `server/services/contracts.py`
+**Files:** `server/routes/contracts.py`, `server/services/contracts.py`, `server/schemas/contracts.py`
 **Depends on:** 1A, 1B
 
+- `server/schemas/contracts.py`: Pydantic models — `ContractCreate` (uses `ElementType` enum), `ContractResponse`, `ContractListResponse`
 - `POST /api/contracts` with validations: budget check, no duplicate, length 1-5, cooldown check, roster limits (5 drivers + 1 constructor), lockdown check
 - `GET /api/contracts` — active contracts with current salary, races remaining
 - `DELETE /api/contracts/<id>` — early release: 3% penalty, refund salary minus penalty, record release race for cooldown
@@ -176,9 +181,10 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 - Early release: confirmation dialog with penalty amount
 
 ### 2E: Race Schedule — Backend
-**Files:** `server/routes/races.py`, `server/services/races.py`
+**Files:** `server/routes/races.py`, `server/services/races.py`, `server/schemas/races.py`
 **Depends on:** 1A, 1B
 
+- `server/schemas/races.py`: Pydantic models — `RaceResponse`, `RaceDetailResponse`
 - `GET /api/races` — all races for season, ordered by round, with status (upcoming/lockdown/completed)
 - `GET /api/races/<id>` — full detail including lockdown active, results available, has_sprint
 - `next_race` convenience field on list endpoint
@@ -196,9 +202,10 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 ## TIER 3: Scoring + Leaderboard
 
 ### 3A: Scoring Engine — Backend
-**Files:** `server/services/scoring.py`, `server/services/results_ingestion.py`, `server/routes/admin.py`
+**Files:** `server/services/scoring.py`, `server/services/results_ingestion.py`, `server/routes/admin.py`, `server/schemas/admin.py`
 **Depends on:** 2C, 1B
 
+- `server/schemas/admin.py`: Pydantic models — `IngestResultsRequest`, `SalaryAdjustRequest`
 - `POST /api/admin/results` (admin-only, checks `user.is_admin`): fetch quali/race/sprint results from OpenF1, populate driver_results + constructor_results, run scoring
 - `scoring.py` — `calculate_driver_scores(race_id)`:
   - Qualifying: `50 - 2*(pos-1)`
@@ -235,9 +242,10 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 - User's total fantasy score for this race
 
 ### 3D: Leaderboard — Backend
-**Files:** `server/routes/leaderboard.py`, `server/services/leaderboard.py`
+**Files:** `server/routes/leaderboard.py`, `server/services/leaderboard.py`, `server/schemas/leaderboard.py`
 **Depends on:** 3A
 
+- `server/schemas/leaderboard.py`: Pydantic models — `StandingEntry`, `LeaderboardResponse`
 - `GET /api/leaderboard` — season standings: aggregate fantasy_scores, include team value + bank balance, ranked
 - `GET /api/leaderboard/<race_id>` — single race standings
 - Handle ties, include current user highlight
@@ -267,25 +275,26 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 **Files:** `server/cli.py`, update `server/app.py`
 **Depends on:** 3A, 3B
 
-- `uv run flask seed` — seed DB with 2025 data from OpenF1 + default league
-- `uv run flask ingest-results --race-id <id>` — results + scoring
-- `uv run flask adjust-salaries --race-id <id>` — salary recalc
-- `uv run flask create-admin --email <email>` — mark user as admin
+- Typer-based CLI (`typer` already in deps from 0A)
+- `uv run python cli.py seed` — seed DB with 2025 data from OpenF1 + default league
+- `uv run python cli.py ingest-results --race-id <id>` — results + scoring
+- `uv run python cli.py adjust-salaries --race-id <id>` — salary recalc
+- `uv run python cli.py create-admin --email <email>` — mark user as admin
 
 ---
 
 ## Key Design Decisions
 - **Salaries**: Hardcoded in `server/data/salaries_2025.py` (not derived from OpenF1). OpenF1 provides driver/constructor/race data; we assign fantasy salaries ourselves.
-- **Admin**: Simple `is_admin` boolean on User model. Admin endpoints check this. Set via `uv run flask create-admin --email`.
+- **Admin**: Simple `is_admin` boolean on User model. Admin endpoints check this. Set via `uv run python cli.py create-admin --email`.
 - **Dev assignment**: Issues are self-contained — either dev can pick up any issue. Suggested tracks minimize blocking but aren't mandatory.
 
 ## Verification Plan
 
-1. **Backend smoke test:** `uv run flask run --port 3001`, hit `/api/health`
-2. **Seed test:** `uv run flask seed`, verify drivers/constructors/races populated
+1. **Backend smoke test:** `uv run uvicorn app:app --port 3001 --reload`, hit `/api/health` and `/docs`
+2. **Seed test:** `uv run python cli.py seed`, verify drivers/constructors/races populated
 3. **Auth flow:** Register → check console for magic link (dev mode) → verify → get JWT → hit `/api/auth/me`
 4. **Contract flow:** Sign 5 drivers + 1 constructor, verify budget deducted, release one with penalty
-5. **Scoring flow:** `uv run flask ingest-results --race-id 1`, verify scores calculated, fantasy_scores populated
-6. **Salary flow:** `uv run flask adjust-salaries --race-id 1`, verify salary_history records
+5. **Scoring flow:** `uv run python cli.py ingest-results --race-id 1`, verify scores calculated, fantasy_scores populated
+6. **Salary flow:** `uv run python cli.py adjust-salaries --race-id 1`, verify salary_history records
 7. **Leaderboard:** Multiple users with contracts, verify ranking after scoring
 8. **Frontend E2E:** Full user journey through all pages on mobile viewport

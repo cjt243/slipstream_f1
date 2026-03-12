@@ -22,7 +22,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 | Layer | Choice | Reason |
 |---|---|---|
 | Frontend | React (Vite) | Fast dev, Claude-friendly, mobile-responsive |
-| Backend | Flask + SQLAlchemy | Python backend, ORM over Turso via sqlalchemy-libsql |
+| Backend | FastAPI + SQLAlchemy | Async Python backend, native Pydantic, auto OpenAPI docs |
 | Database | Turso (LibSQL/SQLite) | Free tier, edge-ready, simple schema |
 | Hosting | DigitalOcean App Platform | Simple GitHub deploy, affordable |
 | Styling | Tailwind CSS | Utility-first, great for mobile layouts |
@@ -44,14 +44,17 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── index.html
 │   └── vite.config.js
 │
-├── server/                  # Flask backend
-│   ├── routes/              # API route handlers (blueprints)
-│   ├── models/              # SQLAlchemy models
+├── server/                  # FastAPI backend
+│   ├── routes/              # API route handlers (APIRouter)
+│   ├── models/              # SQLAlchemy ORM models
+│   │   └── enums.py         # All shared Enum types (ElementType, etc.)
+│   ├── schemas/             # Pydantic request/response models
 │   ├── services/            # Business logic (scoring, contracts, OpenF1, email)
 │   ├── data/                # Static seed data (salaries, circuit laps)
-│   ├── middleware/           # Auth, error handling
-│   ├── app.py               # Entry point
-│   ├── cli.py               # Flask CLI commands (seed, ingest, etc.)
+│   ├── middleware/          # Auth, error handling
+│   ├── dependencies.py      # FastAPI Depends() helpers (get_db, get_current_user)
+│   ├── app.py               # Entry point (FastAPI app, router registration)
+│   ├── cli.py               # CLI commands (seed, ingest, etc.)
 │   └── pyproject.toml       # Python dependencies
 │
 ├── CLAUDE.md                # This file
@@ -162,8 +165,8 @@ Single-league design: all endpoints implicitly scoped to the default league.
 
 ## Environment Variables
 ```
-FLASK_PORT=3001
-FLASK_SECRET_KEY=your_secret_here
+APP_PORT=3001
+SECRET_KEY=your_secret_here
 TURSO_DATABASE_URL=libsql://your-db.turso.io
 TURSO_AUTH_TOKEN=your_token_here
 
@@ -179,8 +182,8 @@ VITE_API_URL=http://localhost:3001/api
 
 ### Quick Start
 ```bash
-# Backend (Flask)
-cd server && uv run flask run --port 3001
+# Backend (FastAPI)
+cd server && uv run uvicorn app:app --port 3001 --reload
 
 # Frontend (React/Vite)
 cd client && npm install && npm run dev
@@ -196,20 +199,28 @@ cd client && npm install && npm run dev
 
 ## Coding Conventions
 
-- Flask routes stay thin — logic lives in model/query functions
-- Use SQLAlchemy 2.0 style (DeclarativeBase, Session context managers)
-- React: functional components + hooks only
+### Python / FastAPI
+- Routes stay thin — business logic lives in `services/`, DB queries in `models/`
+- Use SQLAlchemy 2.0 style (`DeclarativeBase`, session via `Depends(get_db)`)
+- All ENUMs defined in `server/models/enums.py` and imported everywhere — never inline string literals for typed fields
+- Pydantic schemas in `server/schemas/` for all request bodies and response models — never access `request.json()` directly in routes
+- Declare route response types with `response_model=` so OpenAPI docs stay accurate
+- Auth and DB session injected via `Depends()` — no global state
+- Use `uv run` for all Python execution — never bare `pip` or `python3`
+- Name DB query functions descriptively: `get_user_leagues()`, `lock_team_selection()`
+
+### React / Frontend
+- Functional components + hooks only
 - Tailwind for all styling — no custom CSS unless unavoidable
 - Keep components small and single-purpose
-- Name DB query functions descriptively: `get_user_leagues()`, `lock_team_selection()`
-- Use `uv run` for all Python execution — never bare `pip` or `python3`
 
 ---
 
 ## Notes for Claude
 
 - Always read this file before writing any code in a session
-- SQLAlchemy + Turso spike passed (see `spike/turso_sqlalchemy/`) — local libSQL works, remote Turso untested
+- Backend is FastAPI — use `APIRouter`, Pydantic schemas, and `Depends()` throughout; no Flask patterns
+- SQLAlchemy + Turso spike passed (see `spike/turso_sqlalchemy/`) — local libSQL works, remote Turso untested; async SQLAlchemy not yet validated with sqlalchemy-libsql, start sync
 - When completing a Phase 1 feature, check it off the roadmap above
 - If the schema changes, update the schema section here too
 - Prefer editing existing files over creating new ones
