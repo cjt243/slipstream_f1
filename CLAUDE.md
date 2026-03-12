@@ -50,10 +50,10 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── models/              # SQLAlchemy ORM models
 │   │   └── enums.py         # All shared Enum types (ElementType, etc.)
 │   ├── schemas/             # Pydantic request/response models
-│   ├── services/            # Business logic (scoring, contracts, OpenF1, email)
+│   ├── services/            # Business logic (auth, scoring, contracts, OpenF1, email)
 │   ├── data/                # Static seed data (salaries, circuit laps)
-│   ├── middleware/          # Auth, error handling
-│   ├── dependencies.py      # FastAPI Depends() helpers (get_db, get_current_user)
+│   ├── tests/               # pytest suite (conftest.py, test_*.py per service/route)
+│   ├── dependencies.py      # get_db, get_current_user, get_admin_user, get_optional_user
 │   ├── app.py               # Entry point (FastAPI app, router registration)
 │   ├── cli.py               # CLI commands (seed, ingest, etc.)
 │   └── pyproject.toml       # Python dependencies
@@ -104,6 +104,7 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 ```sql
 -- Core entities
 CREATE TABLE users ( ... );                -- id, email, username, is_admin
+CREATE TABLE magic_tokens ( ... );         -- id, user_id, token_hash, expires_at (deleted on use)
 CREATE TABLE leagues ( ... );              -- id, name, invite_code, owner_id
 CREATE TABLE league_members ( ... );       -- league_id, user_id, bank_balance
 
@@ -146,7 +147,7 @@ Single-league design: all endpoints implicitly scoped to the default league.
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/auth/register` | Send magic link to email (creates user if new) |
-| POST | `/auth/login` | Verify magic link token, returns JWT |
+| POST | `/auth/verify` | Verify magic link token, returns JWT |
 | GET | `/auth/me` | Current user profile + bank balance |
 | GET | `/drivers` | Current season drivers + salaries |
 | GET | `/constructors` | Current season constructors + salaries |
