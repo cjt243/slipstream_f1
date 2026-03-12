@@ -264,6 +264,36 @@ cd client && npm install && npm run dev
 - Use `uv run` for all Python execution — never bare `pip` or `python3`
 - Name DB query functions descriptively: `get_user_leagues()`, `lock_team_selection()`
 
+### Service Layer
+- Services are **module-level functions** by default — no class wrapper unless the service holds state across calls
+- The one exception is `OpenF1Client`: a class because it owns rate-limiter state
+- Service functions accept and return **ORM models or primitives** — never Pydantic schemas; services must not import from `schemas/`
+- Services never import FastAPI or `HTTPException` — they are pure Python and must be testable without an HTTP context
+- Business rule violations raise standard Python exceptions: `ValueError` for invalid input, `PermissionError` for auth violations
+- Routes are responsible for schema↔ORM translation and for catching service exceptions and converting them to `HTTPException`
+
+### Error Handling
+- Services: raise `ValueError` or `PermissionError` with a human-readable message
+- Routes: catch and re-raise as `HTTPException` with the appropriate status code
+  - `ValueError` → 400
+  - `PermissionError` → 403
+  - `None` return from a lookup → 404
+- Never let ORM or service exceptions propagate unhandled to the client
+
+### Not-Found Pattern
+- Service functions return `None` when a record is not found — never raise inside the service
+- The calling route checks for `None` and raises `HTTPException(status_code=404)`
+
+### Type Hints
+- All function signatures annotated, including return types
+- No `Any` unless genuinely unavoidable
+
+### Testing
+- Test services directly by passing a `db` session from the in-memory SQLite fixture — not via HTTP
+- Test routes via FastAPI `TestClient` for integration coverage
+- Never mock the DB — always use the real in-memory SQLite fixture
+- Scoring and salary functions must be pure and unit-testable without a DB session where possible
+
 ### React / Frontend
 - Functional components + hooks only
 - Tailwind for all styling — no custom CSS unless unavoidable
