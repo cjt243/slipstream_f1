@@ -51,7 +51,8 @@ TIER 4 — Integration
 - Init `server/` with fastapi, uvicorn[standard], python-jose[cryptography], passlib[bcrypt], sqlalchemy>=2.0, sqlalchemy-libsql, alembic, pydantic>=2.0, resend, python-dotenv, typer
 - `app.py`: FastAPI app instance, CORSMiddleware, APIRouter registration stubs
 - `dependencies.py`: `get_db()` session dependency, `get_current_user()` JWT dependency
-- SQLAlchemy engine factory reading `TURSO_DATABASE_URL` with local SQLite fallback
+- SQLAlchemy engine factory in `dependencies.py`: if `TURSO_DATABASE_URL` is set connect to Turso with `TURSO_AUTH_TOKEN`; if unset fall back to `sqlite:///./dev.db`; if auth token is set but URL is not, raise a startup error (misconfiguration guard)
+- `.gitignore` entries: `.env`, `*.db`
 - Alembic init: `alembic init alembic` inside `server/`; configure `alembic/env.py` to import `Base` from `server/models/base.py` and read `TURSO_DATABASE_URL` from env
 - `server/schemas/` directory with `__init__.py` — Pydantic models added here per feature in later issues
 - `GET /api/health` returns `{"status": "ok"}`
@@ -103,6 +104,11 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 - Never call `Base.metadata.drop_all()` in application code — only in pytest fixtures scoped to a test DB
 - `cli.py seed` must check for existing rows before inserting (no truncate + re-insert pattern)
 - Subsequent schema changes: edit the model, run `alembic revision --autogenerate`, commit the migration file
+
+**Test fixture** (`server/tests/conftest.py`):
+- Session-scoped `db_engine` fixture creates `sqlite:///:memory:` and runs all Alembic migrations against it programmatically
+- Function-scoped `db` fixture wraps each test in a transaction and rolls back after — no teardown, no file cleanup
+- No env vars required; never connects to Turso or `dev.db`
 
 **Reuse:** DeclarativeBase pattern from `spike/turso_sqlalchemy/test_connection.py`
 

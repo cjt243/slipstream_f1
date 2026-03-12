@@ -168,8 +168,8 @@ Single-league design: all endpoints implicitly scoped to the default league.
 ```
 APP_PORT=3001
 SECRET_KEY=your_secret_here
-TURSO_DATABASE_URL=libsql://your-db.turso.io
-TURSO_AUTH_TOKEN=your_token_here
+TURSO_DATABASE_URL=libsql://your-db.turso.io  # omit locally to use SQLite fallback
+TURSO_AUTH_TOKEN=your_token_here               # omit locally
 
 RESEND_API_KEY=re_your_key_here
 FRONTEND_URL=http://localhost:5173
@@ -179,12 +179,50 @@ VITE_API_URL=http://localhost:3001/api
 
 ---
 
+## Environment Isolation
+
+Three environments — each uses a different database and cannot touch the others:
+
+| | Local Dev | Tests | Production |
+|---|---|---|---|
+| DB | `dev.db` (SQLite file) | in-memory SQLite | Turso (libSQL) |
+| `TURSO_DATABASE_URL` | unset | not used | set in DO App Platform |
+| Migrations | `alembic upgrade head` | applied in pytest fixture | `alembic upgrade head` on deploy |
+
+### Engine factory rules
+- If `TURSO_DATABASE_URL` is set → connect to Turso with `TURSO_AUTH_TOKEN`
+- If unset → fall back to `sqlite:///./dev.db` (local dev only)
+- If `TURSO_AUTH_TOKEN` is set but `TURSO_DATABASE_URL` is not → raise a clear startup error (misconfiguration guard)
+
+### Test database
+- pytest always uses an **in-memory SQLite** DB (`sqlite:///:memory:`) — no env vars needed, no risk of touching dev or prod
+- A session-scoped fixture creates the engine and runs all Alembic migrations against it
+- Each test function wraps its session in a transaction and rolls back after — fast, clean, no teardown logic
+- Fixture lives in `server/tests/conftest.py`
+
+### Gitignore entries required
+```
+.env
+*.db        # dev.db and any local SQLite files
+```
+
+### Safeguards — rules Claude must follow
+- Never connect to Turso in tests — test fixtures always use `sqlite:///:memory:`
+- Never hardcode a DB URL in application code — always read from env
+- Never commit `.env` or `*.db` files
+
+---
+
 ## Development Workflow
 
 ### Quick Start
 ```bash
 # Backend (FastAPI)
+cd server && uv run alembic upgrade head   # apply migrations to dev.db
 cd server && uv run uvicorn app:app --port 3001 --reload
+
+# Run tests
+cd server && uv run pytest
 
 # Frontend (React/Vite)
 cd client && npm install && npm run dev
