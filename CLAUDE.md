@@ -214,6 +214,25 @@ Three environments — each uses a different database and cannot touch the other
 
 ---
 
+## CI/CD
+
+### Continuous Integration (GitHub Actions)
+- Every PR runs `pytest` against the in-memory SQLite DB — no env vars required
+- Workflow file: `.github/workflows/ci.yml`
+- CI must pass before merging — never merge a branch with failing tests
+
+### Continuous Deployment (DigitalOcean App Platform)
+- Merges to `main` auto-deploy to production via DO App Platform's GitHub integration
+- DO runs `alembic upgrade head` as a pre-deploy job before starting the new instance
+- No manual deploys — all production changes go through `main`
+
+### Rules Claude must follow
+- Do not suggest merging a PR if tests are failing
+- Migration files must be committed alongside model changes so CI and deploy both pick them up
+- The CI workflow uses `uv` — do not change the test runner or introduce pip-based install steps
+
+---
+
 ## Development Workflow
 
 ### Quick Start
