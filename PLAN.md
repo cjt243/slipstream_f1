@@ -48,10 +48,12 @@ TIER 4 — Integration
 ### 0A: Backend Scaffold
 **Files:** `server/pyproject.toml`, `server/app.py`, `server/dependencies.py`, `server/models/__init__.py`, `server/models/base.py`, `server/schemas/__init__.py`, `.env.example`
 
-- Init `server/` with fastapi, uvicorn[standard], python-jose[cryptography], passlib[bcrypt], sqlalchemy>=2.0, sqlalchemy-libsql, pydantic>=2.0, resend, python-dotenv, typer
+- Init `server/` with fastapi, uvicorn[standard], python-jose[cryptography], passlib[bcrypt], sqlalchemy>=2.0, sqlalchemy-libsql, alembic, pydantic>=2.0, resend, python-dotenv, typer
 - `app.py`: FastAPI app instance, CORSMiddleware, APIRouter registration stubs
-- `dependencies.py`: `get_db()` session dependency, `get_current_user()` JWT dependency
-- SQLAlchemy engine factory reading `TURSO_DATABASE_URL` with local SQLite fallback
+- `dependencies.py`: four auth/db dependencies — `get_db()`, `get_current_user()` (validates JWT, returns User or 401), `get_admin_user()` (wraps get_current_user, checks is_admin or 403), `get_optional_user()` (returns User or None, never raises)
+- SQLAlchemy engine factory in `dependencies.py`: if `TURSO_DATABASE_URL` is set connect to Turso with `TURSO_AUTH_TOKEN`; if unset fall back to `sqlite:///./dev.db`; if auth token is set but URL is not, raise a startup error (misconfiguration guard)
+- `.gitignore` entries: `.env`, `*.db`
+- Alembic init: `alembic init alembic` inside `server/`; configure `alembic/env.py` to import `Base` from `server/models/base.py` and read `TURSO_DATABASE_URL` from env
 - `server/schemas/` directory with `__init__.py` — Pydantic models added here per feature in later issues
 - `GET /api/health` returns `{"status": "ok"}`
 - `uv run uvicorn app:app --port 3001 --reload` works
@@ -86,15 +88,27 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 ## TIER 1: Core Data + Shell
 
 ### 1A: Database Schema — All Models
-**Files:** `server/models/enums.py`, `server/models/user.py`, `league.py`, `driver.py`, `constructor.py`, `race.py`, `contract.py`, `results.py`, `scores.py`, `salary_history.py`, `init_db.py`
+**Files:** `server/models/enums.py`, `server/models/user.py`, `magic_token.py`, `league.py`, `driver.py`, `constructor.py`, `race.py`, `contract.py`, `results.py`, `scores.py`, `salary_history.py`
 
 - `enums.py`: all shared Python `Enum` types — `ElementType` (driver/constructor), `SessionType` (race/quali/sprint), `ContractStatus` (active/expired/released) — imported everywhere, never use raw strings for typed fields
-- All 13 models using SQLAlchemy 2.0 DeclarativeBase with `Mapped[]` annotations
-- Models: User (includes `is_admin` bool flag), League, LeagueMember, Driver, Constructor, Race, Contract, DriverResult, ConstructorResult, DriverScore, ConstructorScore, FantasyScore, SalaryHistory
+- All 14 models using SQLAlchemy 2.0 DeclarativeBase with `Mapped[]` annotations
+- Models: User (includes `is_admin` bool flag), MagicToken (user_id FK, token_hash, expires_at — row deleted on successful verify), League, LeagueMember, Driver, Constructor, Race, Contract, DriverResult, ConstructorResult, DriverScore, ConstructorScore, FantasyScore, SalaryHistory
 - Relationships: User↔League (M2M via LeagueMember), Driver→Constructor, Contract FKs
 - Contract model: `element_type` uses `ElementType` enum, plus element_id, race_start, contract_length, signed_salary, released_early, released_at_race
-- `init_db.py`: creates all tables, seeds default league
 - All monetary values as integers (pennies)
+- **No `init_db.py` / no `create_all()` calls** — schema is applied exclusively via Alembic
+- After defining all models, generate the initial migration: `uv run alembic revision --autogenerate -m "initial schema"`, review the generated file, then `uv run alembic upgrade head`
+- Default league seeding is handled by `cli.py seed` (idempotent — checks for existing league before inserting)
+
+**Safeguards:**
+- Never call `Base.metadata.drop_all()` in application code — only in pytest fixtures scoped to a test DB
+- `cli.py seed` must check for existing rows before inserting (no truncate + re-insert pattern)
+- Subsequent schema changes: edit the model, run `alembic revision --autogenerate`, commit the migration file
+
+**Test fixture** (`server/tests/conftest.py`):
+- Session-scoped `db_engine` fixture creates `sqlite:///:memory:` and runs all Alembic migrations against it programmatically
+- Function-scoped `db` fixture wraps each test in a transaction and rolls back after — no teardown, no file cleanup
+- No env vars required; never connects to Turso or `dev.db`
 
 **Reuse:** DeclarativeBase pattern from `spike/turso_sqlalchemy/test_connection.py`
 
@@ -102,7 +116,7 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 **Files:** `server/services/openf1.py`, `server/services/seed.py`
 **Depends on:** 1A
 
-- `openf1.py` functions (see DATA_SOURCES.md §7 for full endpoint mapping):
+- `openf1.py`: implemented as `OpenF1Client` class (the one service class in the project — owns rate-limiter state); methods:
   - `fetch_drivers(season)` → `/v1/drivers?session_key=latest`, dedupe by driver_number
   - `fetch_constructors(season)` → derived from unique team_name in driver data
   - `fetch_races(season)` → `/v1/meetings?year=` + `/v1/sessions?year=` for details, identify sprints
@@ -138,24 +152,27 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 ## TIER 2: Feature Verticals
 
 ### 2A: Auth — Magic Link Backend
-**Files:** `server/routes/auth.py`, `server/services/email.py`, `server/schemas/auth.py`
+**Files:** `server/routes/auth.py`, `server/services/auth.py`, `server/services/email.py`, `server/schemas/auth.py`
 **Depends on:** 1A
 
-- `server/schemas/auth.py`: Pydantic models — `RegisterRequest`, `LoginRequest`, `AuthResponse`, `UserResponse`
-- `POST /api/auth/register` — create user + username, send magic link via Resend
-- `POST /api/auth/login` — verify magic link token (15-min expiry), return 7-day JWT + user
-- `GET /api/auth/me` — current user with bank_balance, team_value
-- Magic link: random token stored hashed in DB with expiry
-- Resend sends link to `{FRONTEND_URL}/auth/verify?token={token}`
-- New users auto-added to default league with £100M bank balance
-- Dev mode: if no `RESEND_API_KEY`, log magic link to console
+- `server/schemas/auth.py`: Pydantic models — `RegisterRequest`, `VerifyRequest`, `AuthResponse`, `UserResponse`
+- `server/services/auth.py` — all auth logic, no FastAPI imports:
+  - `get_or_create_user(db, email, username) -> User` — upsert user, auto-enroll in default league with £100M balance
+  - `create_magic_token(db, user_id) -> str` — generate random token, store SHA-256 hash + 15-min expiry in `magic_tokens`, return raw token
+  - `verify_magic_token(db, raw_token) -> User | None` — hash token, look up in DB, check expiry, delete row, return User or None
+  - `create_jwt(user) -> str` — encode `{"sub": user.id, "exp": now+7days}` with `SECRET_KEY`
+- `server/services/email.py` — thin Resend wrapper: `send_magic_link(email, link)`; if `RESEND_API_KEY` unset, logs link to console instead
+- Routes (thin — translate service results to HTTP):
+  - `POST /api/auth/register` → calls `get_or_create_user` + `create_magic_token` + `send_magic_link`; always returns 200 (don't reveal whether email exists)
+  - `POST /api/auth/verify` → calls `verify_magic_token`; `None` → 401, else `create_jwt` → `AuthResponse`
+  - `GET /api/auth/me` → protected by `get_current_user()`, returns `UserResponse`
 
 ### 2B: Auth — Magic Link Frontend
 **Files:** `client/src/pages/LoginPage.jsx`, `pages/VerifyPage.jsx`, update `AuthContext.jsx`
 **Depends on:** 1C, 0C
 
 - Login page: email + username input, "Send Magic Link" button, success/error states
-- Verify page at `/auth/verify`: reads token from URL, calls login endpoint, stores JWT, redirects to `/team`
+- Verify page at `/auth/verify`: reads token from URL, calls `POST /api/auth/verify`, stores JWT, redirects to `/team`
 - Styled per design system: dark bg, speed cyan accents, Barlow font
 
 ### 2C: Contract Signing — Backend
@@ -206,7 +223,7 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 **Depends on:** 2C, 1B
 
 - `server/schemas/admin.py`: Pydantic models — `IngestResultsRequest`, `SalaryAdjustRequest`
-- `POST /api/admin/results` (admin-only, checks `user.is_admin`): fetch quali/race/sprint results from OpenF1, populate driver_results + constructor_results, run scoring
+- `POST /api/admin/results` (protected by `get_admin_user()` dependency): fetch quali/race/sprint results from OpenF1, populate driver_results + constructor_results, run scoring
 - `scoring.py` — `calculate_driver_scores(race_id)`:
   - Qualifying: `50 - 2*(pos-1)`
   - Race: `100 - 3*(pos-1)`
@@ -291,7 +308,7 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 ## Verification Plan
 
 1. **Backend smoke test:** `uv run uvicorn app:app --port 3001 --reload`, hit `/api/health` and `/docs`
-2. **Seed test:** `uv run python cli.py seed`, verify drivers/constructors/races populated
+2. **Migrate + seed:** `uv run alembic upgrade head` (creates tables), then `uv run python cli.py seed` (idempotent — safe to re-run); verify drivers/constructors/races populated
 3. **Auth flow:** Register → check console for magic link (dev mode) → verify → get JWT → hit `/api/auth/me`
 4. **Contract flow:** Sign 5 drivers + 1 constructor, verify budget deducted, release one with penalty
 5. **Scoring flow:** `uv run python cli.py ingest-results --race-id 1`, verify scores calculated, fantasy_scores populated

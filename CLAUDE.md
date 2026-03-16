@@ -28,6 +28,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 | Styling | Tailwind CSS | Utility-first, great for mobile layouts |
 | Auth | Resend (magic links) | Free tier (3k emails/mo), no passwords |
 | F1 Data | OpenF1 API | Free, no auth for historical data, 3 req/s |
+| Migrations | Alembic | SQLAlchemy-native schema versioning |
 
 ---
 
@@ -49,10 +50,10 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── models/              # SQLAlchemy ORM models
 │   │   └── enums.py         # All shared Enum types (ElementType, etc.)
 │   ├── schemas/             # Pydantic request/response models
-│   ├── services/            # Business logic (scoring, contracts, OpenF1, email)
+│   ├── services/            # Business logic (auth, scoring, contracts, OpenF1, email)
 │   ├── data/                # Static seed data (salaries, circuit laps)
-│   ├── middleware/          # Auth, error handling
-│   ├── dependencies.py      # FastAPI Depends() helpers (get_db, get_current_user)
+│   ├── tests/               # pytest suite (conftest.py, test_*.py per service/route)
+│   ├── dependencies.py      # get_db, get_current_user, get_admin_user, get_optional_user
 │   ├── app.py               # Entry point (FastAPI app, router registration)
 │   ├── cli.py               # CLI commands (seed, ingest, etc.)
 │   └── pyproject.toml       # Python dependencies
@@ -103,6 +104,7 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 ```sql
 -- Core entities
 CREATE TABLE users ( ... );                -- id, email, username, is_admin
+CREATE TABLE magic_tokens ( ... );         -- id, user_id, token_hash, expires_at (deleted on use)
 CREATE TABLE leagues ( ... );              -- id, name, invite_code, owner_id
 CREATE TABLE league_members ( ... );       -- league_id, user_id, bank_balance
 
@@ -145,7 +147,7 @@ Single-league design: all endpoints implicitly scoped to the default league.
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/auth/register` | Send magic link to email (creates user if new) |
-| POST | `/auth/login` | Verify magic link token, returns JWT |
+| POST | `/auth/verify` | Verify magic link token, returns JWT |
 | GET | `/auth/me` | Current user profile + bank balance |
 | GET | `/drivers` | Current season drivers + salaries |
 | GET | `/constructors` | Current season constructors + salaries |
@@ -167,8 +169,8 @@ Single-league design: all endpoints implicitly scoped to the default league.
 ```
 APP_PORT=3001
 SECRET_KEY=your_secret_here
-TURSO_DATABASE_URL=libsql://your-db.turso.io
-TURSO_AUTH_TOKEN=your_token_here
+TURSO_DATABASE_URL=libsql://your-db.turso.io  # omit locally to use SQLite fallback
+TURSO_AUTH_TOKEN=your_token_here               # omit locally
 
 RESEND_API_KEY=re_your_key_here
 FRONTEND_URL=http://localhost:5173
@@ -178,12 +180,69 @@ VITE_API_URL=http://localhost:3001/api
 
 ---
 
+## Environment Isolation
+
+Three environments — each uses a different database and cannot touch the others:
+
+| | Local Dev | Tests | Production |
+|---|---|---|---|
+| DB | `dev.db` (SQLite file) | in-memory SQLite | Turso (libSQL) |
+| `TURSO_DATABASE_URL` | unset | not used | set in DO App Platform |
+| Migrations | `alembic upgrade head` | applied in pytest fixture | `alembic upgrade head` on deploy |
+
+### Engine factory rules
+- If `TURSO_DATABASE_URL` is set → connect to Turso with `TURSO_AUTH_TOKEN`
+- If unset → fall back to `sqlite:///./dev.db` (local dev only)
+- If `TURSO_AUTH_TOKEN` is set but `TURSO_DATABASE_URL` is not → raise a clear startup error (misconfiguration guard)
+
+### Test database
+- pytest always uses an **in-memory SQLite** DB (`sqlite:///:memory:`) — no env vars needed, no risk of touching dev or prod
+- A session-scoped fixture creates the engine and runs all Alembic migrations against it
+- Each test function wraps its session in a transaction and rolls back after — fast, clean, no teardown logic
+- Fixture lives in `server/tests/conftest.py`
+
+### Gitignore entries required
+```
+.env
+*.db        # dev.db and any local SQLite files
+```
+
+### Safeguards — rules Claude must follow
+- Never connect to Turso in tests — test fixtures always use `sqlite:///:memory:`
+- Never hardcode a DB URL in application code — always read from env
+- Never commit `.env` or `*.db` files
+
+---
+
+## CI/CD
+
+### Continuous Integration (GitHub Actions)
+- Every PR runs `pytest` against the in-memory SQLite DB — no env vars required
+- Workflow file: `.github/workflows/ci.yml`
+- CI must pass before merging — never merge a branch with failing tests
+
+### Continuous Deployment (DigitalOcean App Platform)
+- Merges to `main` auto-deploy to production via DO App Platform's GitHub integration
+- DO runs `alembic upgrade head` as a pre-deploy job before starting the new instance
+- No manual deploys — all production changes go through `main`
+
+### Rules Claude must follow
+- Do not suggest merging a PR if tests are failing
+- Migration files must be committed alongside model changes so CI and deploy both pick them up
+- The CI workflow uses `uv` — do not change the test runner or introduce pip-based install steps
+
+---
+
 ## Development Workflow
 
 ### Quick Start
 ```bash
 # Backend (FastAPI)
+cd server && uv run alembic upgrade head   # apply migrations to dev.db
 cd server && uv run uvicorn app:app --port 3001 --reload
+
+# Run tests
+cd server && uv run pytest
 
 # Frontend (React/Vite)
 cd client && npm install && npm run dev
@@ -199,6 +258,22 @@ cd client && npm install && npm run dev
 
 ## Coding Conventions
 
+### Database Migrations (Alembic)
+
+- Alembic is the sole mechanism for schema changes — never use `Base.metadata.create_all()` or `drop_all()` outside of isolated test fixtures
+- `alembic upgrade head` applies all pending migrations; safe to run repeatedly (idempotent)
+- `alembic revision --autogenerate -m "<description>"` generates a migration after editing a model
+- `alembic downgrade -1` rolls back one step — **dev only**, never run in production
+- `alembic downgrade base` wipes all tables — **never run this** unless re-seeding a fresh dev DB, and only after explicit confirmation
+- Migration files live in `server/alembic/versions/` and are committed to git; never edit an already-applied migration
+- Seed scripts (`cli.py seed`) must guard against re-seeding: check for existing rows before inserting, never call `drop_all()` as part of seeding
+
+**Safeguards — rules Claude must follow:**
+1. Never emit `Base.metadata.drop_all()` or `op.drop_table()` in non-test code without an explicit user instruction
+2. Never suggest `alembic downgrade base` unless the user explicitly asks to wipe and re-seed a dev DB
+3. Always generate a new revision file for schema changes — never hand-edit an existing migration
+4. Seed commands must be idempotent (use `INSERT OR IGNORE` / existence checks, not truncate + re-insert)
+
 ### Python / FastAPI
 - Routes stay thin — business logic lives in `services/`, DB queries in `models/`
 - Use SQLAlchemy 2.0 style (`DeclarativeBase`, session via `Depends(get_db)`)
@@ -208,6 +283,36 @@ cd client && npm install && npm run dev
 - Auth and DB session injected via `Depends()` — no global state
 - Use `uv run` for all Python execution — never bare `pip` or `python3`
 - Name DB query functions descriptively: `get_user_leagues()`, `lock_team_selection()`
+
+### Service Layer
+- Services are **module-level functions** by default — no class wrapper unless the service holds state across calls
+- The one exception is `OpenF1Client`: a class because it owns rate-limiter state
+- Service functions accept and return **ORM models or primitives** — never Pydantic schemas; services must not import from `schemas/`
+- Services never import FastAPI or `HTTPException` — they are pure Python and must be testable without an HTTP context
+- Business rule violations raise standard Python exceptions: `ValueError` for invalid input, `PermissionError` for auth violations
+- Routes are responsible for schema↔ORM translation and for catching service exceptions and converting them to `HTTPException`
+
+### Error Handling
+- Services: raise `ValueError` or `PermissionError` with a human-readable message
+- Routes: catch and re-raise as `HTTPException` with the appropriate status code
+  - `ValueError` → 400
+  - `PermissionError` → 403
+  - `None` return from a lookup → 404
+- Never let ORM or service exceptions propagate unhandled to the client
+
+### Not-Found Pattern
+- Service functions return `None` when a record is not found — never raise inside the service
+- The calling route checks for `None` and raises `HTTPException(status_code=404)`
+
+### Type Hints
+- All function signatures annotated, including return types
+- No `Any` unless genuinely unavoidable
+
+### Testing
+- Test services directly by passing a `db` session from the in-memory SQLite fixture — not via HTTP
+- Test routes via FastAPI `TestClient` for integration coverage
+- Never mock the DB — always use the real in-memory SQLite fixture
+- Scoring and salary functions must be pure and unit-testable without a DB session where possible
 
 ### React / Frontend
 - Functional components + hooks only
