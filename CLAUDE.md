@@ -285,6 +285,8 @@ cd client && npm install && npm run dev
 - Declare route response types with `response_model=` so OpenAPI docs stay accurate
 - Auth and DB session injected via `Depends()` — no global state
 - Use `uv run` for all Python execution — never bare `pip` or `python3`
+- `server/` is the project root: run backend commands from `server/` with top-level imports (`from models...`, `from services...`) — never a `server.` prefix. pytest resolves this via `pythonpath = ["."]` in pyproject.
+- Money is stored as integer **whole pounds** (£100M = `100000000`) — never floats, never pennies.
 - Name DB query functions descriptively: `get_user_leagues()`, `lock_team_selection()`
 
 ### Service Layer
@@ -316,6 +318,7 @@ cd client && npm install && npm run dev
 - Test routes via FastAPI `TestClient` for integration coverage
 - Never mock the DB — always use the real in-memory SQLite fixture
 - Scoring and salary functions must be pure and unit-testable without a DB session where possible
+- Verify the frontend renders with Playwright: `uv run --with playwright python <script>` (run `playwright install chromium` once). Start the dev server first and wait for elements — the mock-data fallback loads async.
 
 ### React / Frontend
 - Functional components + hooks only
