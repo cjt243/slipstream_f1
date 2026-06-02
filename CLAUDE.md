@@ -166,16 +166,19 @@ Single-league design: all endpoints implicitly scoped to the default league.
 ---
 
 ## Environment Variables
+See `.env.example` for the canonical list. Server vars are loaded via
+pydantic-settings (`server/config.py`) from `server/.env`.
 ```
-APP_PORT=3001
+PORT=3001
 SECRET_KEY=your_secret_here
+JWT_EXPIRY_DAYS=7
 TURSO_DATABASE_URL=libsql://your-db.turso.io  # omit locally to use SQLite fallback
 TURSO_AUTH_TOKEN=your_token_here               # omit locally
 
-RESEND_API_KEY=re_your_key_here
+RESEND_API_KEY=re_your_key_here                # omit locally to log magic links to console
 FRONTEND_URL=http://localhost:5173
 
-VITE_API_URL=http://localhost:3001/api
+VITE_API_URL=http://localhost:3001/api         # client/.env
 ```
 
 ---
@@ -192,7 +195,7 @@ Three environments — each uses a different database and cannot touch the other
 
 ### Engine factory rules
 - If `TURSO_DATABASE_URL` is set → connect to Turso with `TURSO_AUTH_TOKEN`
-- If unset → fall back to `sqlite:///./dev.db` (local dev only)
+- If unset → fall back to `sqlite+libsql:///dev.db` (local dev only — same libSQL dialect as Turso for parity)
 - If `TURSO_AUTH_TOKEN` is set but `TURSO_DATABASE_URL` is not → raise a clear startup error (misconfiguration guard)
 
 ### Test database
