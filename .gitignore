@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Databases (local dev / spike)
+*.db
+*.db-journal
+file:*.db
+dev.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+*.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
