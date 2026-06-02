@@ -11,8 +11,9 @@ these shapes until the backend lands).
   when missing/invalid.
 - Single-league design: every endpoint is implicitly scoped to the default
   league. No `league_id` in any path or body.
-- **Money is integers (pennies).** `100000000` == £100,000,000 (£100M). The
-  client formats for display.
+- **Money is integers (whole pounds).** `100000000` == £100,000,000 (£100M).
+  No sub-pound amounts ever arise (salaries are £100k-granular). The client
+  formats for display.
 - Timestamps are ISO-8601 UTC strings, e.g. `"2025-03-16T15:00:00Z"`.
 - IDs are integers unless noted.
 - Standard error shape (any non-2xx):
