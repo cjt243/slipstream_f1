@@ -24,7 +24,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 | Frontend | React (Vite) | Fast dev, Claude-friendly, mobile-responsive |
 | Backend | FastAPI + SQLAlchemy | Async Python backend, native Pydantic, auto OpenAPI docs |
 | Database | Turso (LibSQL/SQLite) | Free tier, edge-ready, simple schema |
-| Hosting | DigitalOcean App Platform | Simple GitHub deploy, affordable |
+| Hosting | Vercel (multi-service: `client` + `server`) | Free Hobby tier, GitHub deploys, preview URL per PR |
 | Styling | Tailwind CSS | Utility-first, great for mobile layouts |
 | Auth | Resend (magic links) | Free tier (3k emails/mo), no passwords |
 | F1 Data | OpenF1 API | Free, no auth for historical data, 3 req/s |
@@ -63,6 +63,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 ├── DATA_SOURCES.md          # OpenF1 API endpoint mapping
 ├── LEAGUE_MECHANICS.md      # Full scoring rules & game mechanics
 ├── slipstream-style-guide-v1.jsx  # UI design reference
+├── vercel.json              # Vercel services + routing (/api/* → server, rest → client)
 ├── .env.example             # Required env vars (TODO: create this file)
 └── package.json             # Client scripts (dev, build)
 ```
@@ -178,8 +179,12 @@ TURSO_AUTH_TOKEN=your_token_here               # omit locally
 RESEND_API_KEY=re_your_key_here                # omit locally to log magic links to console
 FRONTEND_URL=http://localhost:5173
 
-VITE_API_URL=http://localhost:3001/api         # client/.env
+VITE_API_URL=http://localhost:3001/api         # client/.env — leave unset on Vercel (defaults to same-origin /api)
 ```
+
+Production values (`TURSO_*`, `SECRET_KEY`, `RESEND_API_KEY`) are set in the Vercel project's
+environment variables. The migration job reads `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` from
+GitHub Actions secrets (`production` environment or repo-level).
 
 ---
 
@@ -190,8 +195,8 @@ Three environments — each uses a different database and cannot touch the other
 | | Local Dev | Tests | Production |
 |---|---|---|---|
 | DB | `dev.db` (SQLite file) | in-memory SQLite | Turso (libSQL) |
-| `TURSO_DATABASE_URL` | unset | not used | set in DO App Platform |
-| Migrations | `alembic upgrade head` | applied in pytest fixture | `alembic upgrade head` on deploy |
+| `TURSO_DATABASE_URL` | unset | not used | Vercel env vars + GitHub Actions secret |
+| Migrations | `alembic upgrade head` | applied in pytest fixture | `migrate` job in CI on push to `main` |
 
 ### Engine factory rules
 - If `TURSO_DATABASE_URL` is set → connect to Turso with `TURSO_AUTH_TOKEN`
@@ -220,18 +225,23 @@ Three environments — each uses a different database and cannot touch the other
 ## CI/CD
 
 ### Continuous Integration (GitHub Actions)
-- Every PR runs `pytest` against the in-memory SQLite DB — no env vars required
+- Every PR runs `pytest` against the in-memory SQLite DB, applies migrations to a fresh SQLite DB, and builds the client — no env vars required
 - Workflow file: `.github/workflows/ci.yml`
+- On push to `main` only, after tests pass, the `migrate` job runs `alembic upgrade head` against production Turso (fails loudly if the Turso secrets are missing)
 - CI must pass before merging — never merge a branch with failing tests
 
-### Continuous Deployment (DigitalOcean App Platform)
-- Merges to `main` auto-deploy to production via DO App Platform's GitHub integration
-- DO runs `alembic upgrade head` as a pre-deploy job before starting the new instance
+### Continuous Deployment (Vercel)
+- Merges to `main` auto-deploy to production via Vercel's GitHub integration; every PR gets a preview deployment
+- `vercel.json` defines two services: `client` (Vite, `index.html` fallback for client routes) and `server` (FastAPI). `/api/*` is rewritten to `server` with the path preserved, so all FastAPI routes (including docs at `/api/docs`) live under `/api`
+- Vercel services have no pre-deploy hook — migrations run from the CI `migrate` job instead, **concurrently with the Vercel deploy**, so either may finish first
+- Preview deployments must never run migrations or point at the production Turso DB
 - No manual deploys — all production changes go through `main`
+- `vercel build` / `vercel dev` run both services locally (needs a Vercel login)
 
 ### Rules Claude must follow
 - Do not suggest merging a PR if tests are failing
 - Migration files must be committed alongside model changes so CI and deploy both pick them up
+- Migrations must be backward-compatible with the previously deployed code (additive first: add columns/tables, backfill, and only drop or rename in a later release), because the deploy and the migration run concurrently
 - The CI workflow uses `uv` — do not change the test runner or introduce pip-based install steps
 
 ---

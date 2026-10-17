@@ -52,3 +52,44 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  migrate:
+    name: Migrate production DB
+    # Only after tests pass on a push to main — never from PRs or previews.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [server, client]
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: migrate-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: server
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Without the URL, alembic would silently migrate a throwaway local dev.db.
+      - name: Check Turso secrets are set
+        run: |
+          if [ -z "$TURSO_DATABASE_URL" ] || [ -z "$TURSO_AUTH_TOKEN" ]; then
+            echo "::error::TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set as secrets for the 'production' environment (or the repo)."
+            exit 1
+          fi
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: server/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Apply migrations to Turso
+        run: |
+          uv run alembic upgrade head
+          uv run alembic current
