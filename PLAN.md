@@ -307,7 +307,7 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 
 ## Verification Plan
 
-1. **Backend smoke test:** `uv run uvicorn app:app --port 3001 --reload`, hit `/api/health` and `/docs`
+1. **Backend smoke test:** `uv run uvicorn app:app --port 3001 --reload`, hit `/api/health` and `/api/docs`
 2. **Migrate + seed:** `uv run alembic upgrade head` (creates tables), then `uv run python cli.py seed` (idempotent — safe to re-run); verify drivers/constructors/races populated
 3. **Auth flow:** Register → check console for magic link (dev mode) → verify → get JWT → hit `/api/auth/me`
 4. **Contract flow:** Sign 5 drivers + 1 constructor, verify budget deducted, release one with penalty
