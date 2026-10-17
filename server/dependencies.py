@@ -21,12 +21,12 @@ JWT_ALGORITHM = "HS256"
 
 
 def _build_db_url() -> str:
-    """Resolve the SQLAlchemy URL from settings (reuses the spike's pattern)."""
+    """Resolve the SQLAlchemy URL from settings."""
     if settings.turso_database_url:
+        # secure=true selects TLS. The auth token is NOT put in the URL: the
+        # libsql driver ignores ``?authToken=`` and only reads ``auth_token``.
         url = settings.turso_database_url.replace("libsql://", "sqlite+libsql://")
-        if settings.turso_auth_token:
-            url += f"?authToken={settings.turso_auth_token}&secure=true"
-        return url
+        return f"{url}?secure=true"
     if settings.turso_auth_token:
         raise RuntimeError(
             "TURSO_AUTH_TOKEN is set but TURSO_DATABASE_URL is missing — "
@@ -36,10 +36,18 @@ def _build_db_url() -> str:
     return "sqlite+libsql:///dev.db"
 
 
+def _build_connect_args() -> dict[str, bool | str]:
+    """Driver kwargs; carries the Turso auth token when connecting remotely."""
+    args: dict[str, bool | str] = {"check_same_thread": False}
+    if settings.turso_database_url and settings.turso_auth_token:
+        args["auth_token"] = settings.turso_auth_token
+    return args
+
+
 engine = create_engine(
     _build_db_url(),
     echo=False,
-    connect_args={"check_same_thread": False},
+    connect_args=_build_connect_args(),
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
