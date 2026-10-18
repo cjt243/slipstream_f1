@@ -57,3 +57,18 @@ def db(db_engine):
         session.close()
         transaction.rollback()
         connection.close()
+
+
+@pytest.fixture
+def client(db):
+    """TestClient whose requests share the test's rolled-back session."""
+    from fastapi.testclient import TestClient
+
+    from app import app
+    from dependencies import get_db
+
+    app.dependency_overrides[get_db] = lambda: db
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_db, None)

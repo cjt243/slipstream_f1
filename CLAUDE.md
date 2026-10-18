@@ -177,14 +177,17 @@ TURSO_DATABASE_URL=libsql://your-db.turso.io  # omit locally to use SQLite fallb
 TURSO_AUTH_TOKEN=your_token_here               # omit locally
 
 RESEND_API_KEY=re_your_key_here                # omit locally to log magic links to console
-FRONTEND_URL=http://localhost:5173
+EMAIL_FROM=Slipstream <onboarding@resend.dev>  # Resend sender; use a verified domain in prod
+FRONTEND_URL=http://localhost:5173             # magic-link base URL; set to the prod domain on Vercel
 
 VITE_API_URL=http://localhost:3001/api         # client/.env — leave unset on Vercel (defaults to same-origin /api)
 ```
 
-Production values (`TURSO_*`, `SECRET_KEY`, `RESEND_API_KEY`) are set in the Vercel project's
+Production values (`TURSO_*`, `SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`) are set in the Vercel project's
 environment variables. The migration job reads `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` from
 GitHub Actions secrets (`production` environment or repo-level).
+The server refuses to start on Vercel (`VERCEL` env set) while `SECRET_KEY` is the dev default,
+so set it for both Production and Preview environments.
 
 ---
 
@@ -341,7 +344,7 @@ cd client && npm install && npm run dev
 
 - Always read this file before writing any code in a session
 - Backend is FastAPI — use `APIRouter`, Pydantic schemas, and `Depends()` throughout; no Flask patterns
-- SQLAlchemy + Turso spike passed (see `spike/turso_sqlalchemy/`) — local libSQL works, remote Turso untested; async SQLAlchemy not yet validated with sqlalchemy-libsql, start sync
+- SQLAlchemy + remote Turso works (production migrations run via CI). The Turso auth token must be passed as the driver's `auth_token` connect arg — `libsql_experimental` ignores `?authToken=` in the URL and sends an empty token. Async SQLAlchemy not yet validated with sqlalchemy-libsql; stay sync
 - When completing a Phase 1 feature, check it off the roadmap above
 - If the schema changes, update the schema section here too
 - Prefer editing existing files over creating new ones
