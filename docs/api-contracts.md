@@ -116,8 +116,10 @@ Response `200`:
 ```
 
 ### GET /races
-`status` is one of `upcoming` | `lockdown` | `completed`. `next_race` is the id
-of the soonest non-completed race (or `null`).
+`status` is one of `upcoming` (before lockdown) | `lockdown` (from the first
+competitive session until results are in) | `completed` (results ingested).
+`next_race` is the id of the first non-completed race by round (or `null`).
+`lockdown_at` / `race_start_at` may be `null` if OpenF1 has no session times.
 
 Response `200`:
 ```json
@@ -132,7 +134,8 @@ Response `200`:
       "circuit": "Bahrain International Circuit",
       "total_laps": 57,
       "has_sprint": false,
-      "lockdown_at": "2025-03-02T15:00:00Z",
+      "lockdown_at": "2025-03-01T15:00:00Z",
+      "race_start_at": "2025-03-02T15:00:00Z",
       "status": "completed"
     }
   ]
@@ -150,7 +153,8 @@ Response `200`:
   "circuit": "Bahrain International Circuit",
   "total_laps": 57,
   "has_sprint": false,
-  "lockdown_at": "2025-03-02T15:00:00Z",
+  "lockdown_at": "2025-03-01T15:00:00Z",
+  "race_start_at": "2025-03-02T15:00:00Z",
   "status": "completed",
   "lockdown_active": false,
   "results_available": true

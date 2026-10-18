@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import settings
-from routes import auth, roster
+from routes import auth, races, roster
 
 # Docs live under /api so they're reachable through the Vercel /api rewrite.
 app = FastAPI(
@@ -66,5 +66,6 @@ def health() -> dict[str, str]:
 
 api.include_router(auth.router)
 api.include_router(roster.router)
+api.include_router(races.router)
 
 app.include_router(api)

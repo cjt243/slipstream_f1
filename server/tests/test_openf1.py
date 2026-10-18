@@ -108,6 +108,7 @@ def test_fetch_races_orders_and_flags(client):
     assert bahrain["race_session_key"] == 102
     # lockdown = first non-practice session start
     assert bahrain["lockdown_at"] == "2025-03-01T15:00:00+00:00"
+    assert bahrain["race_start_at"] == "2025-03-02T15:00:00+00:00"
 
     assert china["has_sprint"] is True
     assert china["sprint_session_key"] == 202

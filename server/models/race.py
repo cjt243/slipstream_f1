@@ -18,6 +18,7 @@ class Race(Base):
     total_laps: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_sprint: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     lockdown_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    race_start_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # OpenF1 identifiers used by the ingestion service (issue 1B).
     meeting_key: Mapped[int | None] = mapped_column(Integer, nullable=True)
