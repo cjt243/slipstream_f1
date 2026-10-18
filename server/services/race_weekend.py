@@ -23,6 +23,7 @@ from models import (
     FantasyScore,
     LeagueMember,
     Race,
+    StarDriver,
     User,
 )
 from services.fantasy import contracts_for_round
@@ -40,6 +41,7 @@ class LineupElement:
     points: int | None  # None until the race is scored
     quali_pos: int | None  # drivers only
     race_pos: int | None  # drivers only
+    is_star: bool = False  # star driver: points shown already doubled
 
 
 @dataclass(frozen=True)
@@ -96,6 +98,8 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
     teams = {t.id: t for t in db.query(Constructor).filter_by(season=race.season)}
     drivers = {d.id: d for d in db.query(Driver).filter_by(season=race.season)}
 
+    stars = {s.user_id: s.driver_id
+             for s in db.query(StarDriver).filter_by(race_id=race.id, league_id=league_id)}
     by_user: dict[int, list[Contract]] = {}
     for c in contracts_for_round(db, race.round):
         if c.league_id == league_id:
@@ -106,11 +110,12 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
             d = drivers.get(c.element_id)
             res = results.get(c.element_id)
             team = teams.get(res.constructor_id if res and res.constructor_id else (d.constructor_id if d else -1))
+            star = stars.get(c.user_id) == c.element_id
             return LineupElement(
                 c.element_type, c.element_id, d.name if d else "Unknown", d.code if d else None,
                 team.color if team else None, team.name if team else None,
-                driver_pts.get(c.element_id, 0) if scored else None,
-                res.quali_pos if res else None, res.race_pos if res else None,
+                driver_pts.get(c.element_id, 0) * (2 if star else 1) if scored else None,
+                res.quali_pos if res else None, res.race_pos if res else None, star,
             )
         t = teams.get(c.element_id)
         return LineupElement(

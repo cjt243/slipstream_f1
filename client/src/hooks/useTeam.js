@@ -40,5 +40,15 @@ export function useTeam() {
     [refresh]
   );
 
-  return { team, loading: team === null && !error, error, sign, release, refresh };
+  // Pick (driverId) or clear (null) the current race's star driver.
+  const setStar = useCallback(
+    async (driverId) => {
+      if (driverId == null) await api.del("/contracts/star");
+      else await api.put("/contracts/star", { driver_id: driverId });
+      await refresh();
+    },
+    [refresh]
+  );
+
+  return { team, loading: team === null && !error, error, sign, release, setStar, refresh };
 }

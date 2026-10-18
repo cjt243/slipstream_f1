@@ -16,6 +16,7 @@ class LineupElementResponse(BaseModel):
     points: int | None
     quali_pos: int | None
     race_pos: int | None
+    is_star: bool  # star driver; points are already doubled
 
 
 class LineupResponse(BaseModel):

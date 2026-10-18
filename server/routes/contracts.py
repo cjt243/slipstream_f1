@@ -12,6 +12,8 @@ from schemas.contracts import (
     CooldownElement,
     CurrentRace,
     ReleaseResponse,
+    StarRequest,
+    StarResponse,
 )
 from services import contracts as contract_service
 from services import races as race_service
@@ -58,7 +60,9 @@ def list_contracts(user: CurrentUser, db: DbSession) -> ContractListResponse:
     contract_value = sum(c.current_salary for c in items)
     current_race = None
     cooldown: list[CooldownElement] = []
+    star = None
     if current is not None:
+        star = contract_service.get_star(db, member, current)
         races_left = db.query(Race).filter(Race.season == settings.season, Race.round >= current.round).count()
         current_race = CurrentRace(
             id=current.id, round=current.round, name=current.name, lockdown_at=current.lockdown_at,
@@ -74,6 +78,8 @@ def list_contracts(user: CurrentUser, db: DbSession) -> ContractListResponse:
         team_value=member.bank_balance + contract_value,
         current_race=current_race,
         cooldown=cooldown,
+        star_driver_id=star.driver_id if star else None,
+        star_max_salary=contract_service.STAR_MAX_SALARY,
     )
 
 
@@ -96,6 +102,35 @@ def sign(body: ContractCreate, user: CurrentUser, db: DbSession) -> ContractResp
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     db.commit()
     return contract_response(db, contract, race_service.current_race(db, settings.season))
+
+
+# Declared before /{contract_id} so "star" isn't parsed as a contract id.
+@router.put("/star", response_model=StarResponse)
+def set_star(body: StarRequest, user: CurrentUser, db: DbSession) -> StarResponse:
+    try:
+        star = contract_service.set_star_driver(
+            db, user, body.driver_id, season=settings.season, now=race_service.utcnow()
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    db.commit()
+    return StarResponse(star_driver_id=star.driver_id)
+
+
+@router.delete("/star", response_model=StarResponse)
+def clear_star(user: CurrentUser, db: DbSession) -> StarResponse:
+    try:
+        contract_service.clear_star_driver(db, user, season=settings.season, now=race_service.utcnow())
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    db.commit()
+    return StarResponse(star_driver_id=None)
 
 
 @router.delete("/{contract_id}", response_model=ReleaseResponse)

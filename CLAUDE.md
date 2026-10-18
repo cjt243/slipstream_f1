@@ -113,6 +113,9 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
   scored live (driver_results rows with `race_pos` null). A race is **completed** only when its race result is
   stored (`race_pos` set) — that, not "any results", drives race status, the current race and salary adjustment.
 - **Team-value floor** top-ups go into cash.
+- **Star driver** (modelled on GridRival's talent driver): before lockdown each user may pick one of their drivers
+  earning **under £18M** (`STAR_MAX_SALARY`, current salary) as the current race's star; its points count double
+  in fantasy scoring. Picked per race (no carry-over); releasing that driver clears the pick.
 
 
 ---
@@ -133,9 +136,10 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
   (qualifying/sprint scored as soon as OpenF1 has them; autopilot runs hourly Fri–Sun)
 - [x] A deeper focus on each weekend - a dedicated "Race" view that focuses on qualifying stats, team lineups, and a Race weekend "winner" - similar to how fantasy football is very week to week focused
   (Weekend tab, `GET /weekend/{race_id}`; other teams' lineups are revealed at lockdown)
-- [ ] Notifications related to deadlines for lineup locking, star drivers
+- [x] Notifications related to deadlines for lineup locking, star drivers
   - [x] Lineup reminder email in the 24h before lockdown to members with an incomplete team (autopilot +
     `POST /admin/reminders`)
+  - [x] Star driver: one driver under £18M per race scores double (`PUT/DELETE /contracts/star`)
 - [ ] Minimum points threshold for teams that forget to set their lineup
 
 ### Phase 3 — Polish
@@ -181,6 +185,9 @@ CREATE TABLE fantasy_scores ( ... );       -- user_id, league_id, race_id, total
 -- Salary history (track fluctuations for team value calc)
 CREATE TABLE salary_history ( ... );       -- element_type, element_id, race_id, salary_before, salary_after
 
+-- Star driver pick per user per race (points count double)
+CREATE TABLE star_drivers ( ... );         -- user_id, league_id, race_id, driver_id
+
 -- Emails sent per user per race (one per kind, so scheduled jobs never repeat one)
 CREATE TABLE notifications ( ... );        -- user_id, race_id, kind (lineup_reminder), sent_at
 ```
@@ -208,6 +215,7 @@ Exact shapes and error codes: [docs/api-contracts.md](docs/api-contracts.md) —
 | GET | `/contracts` | User's team for the current race, cash/contract/team value, cooldowns |
 | POST | `/contracts` | Sign element (driver/constructor) with contract length |
 | DELETE | `/contracts/<id>` | Cancel (free, before first race) or early release (3% penalty) |
+| PUT/DELETE | `/contracts/star` | Pick / clear the current race's star driver (under £18M, double points) |
 | GET | `/scores/<race_id>/drivers` | Driver scoring breakdown for a race |
 | GET | `/scores/<race_id>/constructors` | Constructor scoring breakdown for a race |
 | GET | `/leaderboard` | Season standings (with team values) |

@@ -95,7 +95,8 @@ def test_weekend_route(client, db, weekend):
     assert body["lineups"][0]["is_current_user"] and not body["lineups"][1]["is_current_user"]
     assert body["lineups"][0]["elements"][0] == {
         "element_type": "driver", "element_id": weekend["nor"].id, "name": "Lando Norris", "code": "NOR",
-        "color": "#FF8000", "constructor_name": "McLaren", "points": 140, "quali_pos": 2, "race_pos": 2}
+        "color": "#FF8000", "constructor_name": "McLaren", "points": 140, "quali_pos": 2, "race_pos": 2,
+        "is_star": False}
     assert body["qualifying"][0]["driver_name"] == "Charles Leclerc"
 
     upcoming = client.get(f"/api/weekend/{weekend['r2'].id}").json()

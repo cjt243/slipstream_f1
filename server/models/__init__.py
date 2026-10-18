@@ -17,6 +17,7 @@ from models.results import ConstructorResult, DriverResult
 from models.scores import ConstructorScore, DriverScore, FantasyScore
 from models.salary_history import SalaryHistory
 from models.notification import Notification
+from models.star_driver import StarDriver
 
 __all__ = [
     "Base",
@@ -40,4 +41,5 @@ __all__ = [
     "FantasyScore",
     "SalaryHistory",
     "Notification",
+    "StarDriver",
 ]
