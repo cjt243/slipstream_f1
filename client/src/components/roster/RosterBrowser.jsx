@@ -14,13 +14,14 @@ export default function RosterBrowser() {
   const [sort, setSort] = useState("salary");
   const [query, setQuery] = useState("");
 
-  const { drivers, loading: dl, usingMock: dMock } = useDrivers();
-  const { constructors, loading: cl, usingMock: cMock } = useConstructors();
+  const { drivers, loading: dl, usingMock: dMock, error: dErr } = useDrivers();
+  const { constructors, loading: cl, usingMock: cMock, error: cErr } = useConstructors();
 
   const isDrivers = view === "drivers";
   const items = isDrivers ? drivers : constructors;
   const loading = isDrivers ? dl : cl;
   const usingMock = isDrivers ? dMock : cMock;
+  const error = isDrivers ? dErr : cErr;
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -62,6 +63,8 @@ export default function RosterBrowser() {
 
       {loading ? (
         <div style={{ fontSize: 13, color: C.ghost, fontFamily: FONT.body }}>Loading…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: C.danger, fontFamily: FONT.body }}>Couldn't load {view}: {error}</div>
       ) : visible.length === 0 ? (
         <div style={{ fontSize: 13, color: C.ghost, fontFamily: FONT.body }}>No matches.</div>
       ) : (

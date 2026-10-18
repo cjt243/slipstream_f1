@@ -78,31 +78,39 @@ Response `200`:
 
 ## Reference Data
 
+Reference data is for the league's current season (`SEASON` setting, default
+2026). Both lists are public (no auth) and empty until the season is seeded.
+
 ### GET /drivers
+Ordered by driver number. `code` is the 3-letter abbreviation (may be `null`).
+
 Response `200`:
 ```json
 {
   "drivers": [
     {
       "id": 1,
-      "name": "Max Verstappen",
+      "name": "Lando Norris",
+      "code": "NOR",
       "driver_number": 1,
       "constructor_id": 3,
-      "constructor_name": "Red Bull Racing",
-      "constructor_color": "#3671C6",
-      "salary": 30000000,
-      "season": 2025
+      "constructor_name": "McLaren",
+      "constructor_color": "#F47600",
+      "salary": 34000000,
+      "season": 2026
     }
   ]
 }
 ```
 
 ### GET /constructors
+Ordered by name.
+
 Response `200`:
 ```json
 {
   "constructors": [
-    { "id": 3, "name": "Red Bull Racing", "color": "#3671C6", "salary": 28000000, "season": 2025 }
+    { "id": 3, "name": "McLaren", "color": "#F47600", "salary": 30000000, "season": 2026 }
   ]
 }
 ```

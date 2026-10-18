@@ -26,7 +26,7 @@ This document maps every app feature to its OpenF1 data source, documents the ex
 **Notes:**
 - Deduplicate by `driver_number` (drivers appear once per session they participate in).
 - `session_key=latest` returns the most recent session's driver list. For season start, use the first race session's key.
-- **Salary is NOT from OpenF1** — assigned from hardcoded table in `server/data/salaries_2025.py`.
+- **Salary is NOT from OpenF1** — assigned from hardcoded table in `server/data/salaries.py`.
 
 ### Constructors
 **App need:** Populate `constructors` table with team names.
@@ -214,7 +214,7 @@ These fields must be maintained internally or hardcoded:
 
 | Data | Source | Notes |
 |---|---|---|
-| Driver/constructor salaries | `server/data/salaries_2025.py` | Hardcoded initial values, adjusted per race by scoring engine |
+| Driver/constructor salaries | `server/data/salaries.py` | Hardcoded initial values, adjusted per race by scoring engine |
 | Total race laps (pre-race) | Hardcode per circuit OR leave null until race results ingested | Could maintain a `circuit_laps` lookup table |
 | 8-race rolling average | Calculated from `driver_results` table | Recalculated after each race |
 | Constructor positions | Derived from driver positions | Average two drivers' positions, rank among constructors |

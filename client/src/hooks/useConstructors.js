@@ -7,16 +7,22 @@ export function useConstructors() {
   const [constructors, setConstructors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [usingMock, setUsingMock] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     let active = true;
     api
       .get("/constructors", { auth: false })
       .then((data) => active && setConstructors(data?.constructors ?? []))
-      .catch(() => {
+      .catch((err) => {
         if (!active) return;
-        setConstructors(MOCK_CONSTRUCTORS);
-        setUsingMock(true);
+        // Mock data is a local-dev convenience only; production surfaces the error.
+        if (import.meta.env.DEV) {
+          setConstructors(MOCK_CONSTRUCTORS);
+          setUsingMock(true);
+        } else {
+          setError(err.message);
+        }
       })
       .finally(() => active && setLoading(false));
     return () => {
@@ -24,5 +30,5 @@ export function useConstructors() {
     };
   }, []);
 
-  return { constructors, loading, usingMock };
+  return { constructors, loading, usingMock, error };
 }

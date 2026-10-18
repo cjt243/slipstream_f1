@@ -1,0 +1,61 @@
+name: Production ops
+
+# Runs admin CLI commands (server/cli.py) against the production Turso DB.
+# Only people with write access to the repo can dispatch this workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "cli.py command"
+        required: true
+        type: choice
+        options:
+          - seed
+      args:
+        description: "Extra arguments, e.g. --season 2026"
+        required: false
+        default: ""
+
+jobs:
+  run:
+    name: cli.py ${{ inputs.command }}
+    runs-on: ubuntu-latest
+    environment: production
+    # Shares the migrate job's group so ops never overlap a migration.
+    concurrency:
+      group: migrate-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: server
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      COMMAND: ${{ inputs.command }}
+      ARGS: ${{ inputs.args }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check Turso secrets are set
+        run: |
+          if [ -z "$TURSO_DATABASE_URL" ] || [ -z "$TURSO_AUTH_TOKEN" ]; then
+            echo "::error::TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set as secrets for the 'production' environment (or the repo)."
+            exit 1
+          fi
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: server/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Idempotent; guarantees the schema matches the code being run.
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+
+      # ARGS is word-split but never evaluated by the shell.
+      - name: Run command
+        run: uv run python cli.py "$COMMAND" $ARGS
