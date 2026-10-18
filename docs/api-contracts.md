@@ -300,8 +300,14 @@ Errors (both): `404` race unknown, `409` results not yet available.
 
 ## Leaderboard
 
+Public; with a valid token, `is_current_user` flags the viewer's row. A team's
+points for a race are the summed fantasy points of every element under
+contract for that round. Equal points share a rank (1, 2, 2, 4).
+
 ### GET /leaderboard
-Season standings, ranked. `is_current_user` flags the requesting user's row.
+Season standings for every league member (members without points show 0).
+`team_value` = cash + current salaries under contract. `races` lists races
+with fantasy points, for the per-race selector.
 
 Response `200`:
 ```json
@@ -312,11 +318,12 @@ Response `200`:
       "user_id": 1,
       "username": "speedy",
       "total_points": 1240,
-      "team_value": 95000000,
+      "team_value": 101500000,
       "bank_balance": 12000000,
       "is_current_user": true
     }
-  ]
+  ],
+  "races": [ { "id": 18, "round": 18, "name": "United States Grand Prix" } ]
 }
 ```
 
@@ -326,12 +333,13 @@ Single-race standings.
 Response `200`:
 ```json
 {
-  "race_id": 1,
+  "race_id": 18,
   "standings": [
-    { "rank": 1, "user_id": 1, "username": "speedy", "race_points": 175, "is_current_user": true }
+    { "rank": 1, "user_id": 1, "username": "speedy", "race_points": 502, "is_current_user": true }
   ]
 }
 ```
+Errors: `404` unknown race.
 
 ---
 
@@ -356,6 +364,8 @@ Ingest results for a race from OpenF1, then run scoring. Safe to re-run (e.g.
 after a post-race penalty). Ingest races in round order — improvement points
 use the earlier rounds' finishes.
 
+Also (re)computes every team's fantasy points for the race.
+
 Request:
 ```json
 { "race_id": 1 }
@@ -379,8 +389,9 @@ Response `200`:
 ```json
 { "race_id": 1, "adjustments": 33 }
 ```
-Contracts whose last round was this race are then settled: the element's
-post-race salary is paid back to the owner's cash.
+Contracts whose last round was this race are then settled (the element's
+post-race salary is paid back to the owner's cash), and any team worth less
+than £100M has its cash topped up to the floor (LEAGUE_MECHANICS.md §6.3).
 
 Errors: `404` unknown race; `409` not scored yet, already adjusted, or an
 earlier round still needs adjusting.

@@ -20,6 +20,7 @@ from models import (
     Race,
 )
 from services import scoring
+from services.fantasy import score_fantasy
 from services.openf1 import OpenF1Client
 from services.seed import seed_constructors, upsert_driver
 
@@ -210,6 +211,7 @@ def process_race_results(db: Session, client: OpenF1Client, race: Race) -> Proce
     if ingest_race_results(db, client, race) is None:
         return None
     drivers, constructors = score_race(db, race)
+    score_fantasy(db, race)
     db.commit()
     return ProcessedRace(race.id, drivers, constructors)
 
