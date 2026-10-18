@@ -303,6 +303,13 @@ cd client && npm install && npm run dev
 - Migration files live in `server/alembic/versions/` and are committed to git; never edit an already-applied migration
 - Seed scripts (`cli.py seed`) must guard against re-seeding: check for existing rows before inserting, never call `drop_all()` as part of seeding
 
+**SQLite/Turso table rebuilds:** batch mode recreates a table (copy → DROP → rename) for many ALTERs — e.g. adding a
+column with a `server_default`. Turso enforces foreign keys, so that DROP would cascade-delete every child row; this
+happened once in production (driver_results/driver_scores were wiped). `alembic/env.py` therefore turns
+`PRAGMA foreign_keys` off for the duration of a migration, and `tests/test_migrations.py` fills every table at the
+base revision, upgrades to head with foreign keys ON, and fails if any rows disappear. When adding a table, add a
+seed row for it to that test.
+
 **Safeguards — rules Claude must follow:**
 1. Never emit `Base.metadata.drop_all()` or `op.drop_table()` in non-test code without an explicit user instruction
 2. Never suggest `alembic downgrade base` unless the user explicitly asks to wipe and re-seed a dev DB
