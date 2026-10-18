@@ -24,6 +24,7 @@ from models import (
     Race,
     SalaryHistory,
 )
+from services.races import races_with_results
 
 MAX_ADJUSTMENT = {ElementType.DRIVER: 2_000_000, ElementType.CONSTRUCTOR: 3_000_000}
 MIN_ADJUSTMENT = 100_000
@@ -54,7 +55,10 @@ def is_adjusted(db: Session, race: Race) -> bool:
 
 
 def _is_scored(db: Session, race: Race) -> bool:
-    return db.query(DriverScore.id).filter_by(race_id=race.id).first() is not None
+    """Scored with the race result in — not just live qualifying/sprint points."""
+    if db.query(DriverScore.id).filter_by(race_id=race.id).first() is None:
+        return False
+    return race.id in races_with_results(db, [race.id])
 
 
 def pending_earlier_race(db: Session, race: Race) -> Race | None:

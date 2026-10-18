@@ -152,7 +152,8 @@ def test_admin_results_then_public_scores(client, db, weekend, fake_openf1):
 
     r = client.post("/api/admin/results", json={"race_id": weekend.id}, headers=auth_header(admin))
     assert r.status_code == 200
-    assert r.json() == {"race_id": weekend.id, "drivers_scored": 4, "constructors_scored": 2}
+    assert r.json() == {"race_id": weekend.id, "drivers_scored": 4, "constructors_scored": 2,
+                        "live": False}
 
     drivers = client.get(f"/api/scores/{weekend.id}/drivers").json()["scores"]
     assert drivers[0]["driver_name"] == "Lando Norris"
@@ -172,7 +173,9 @@ def test_admin_results_then_public_scores(client, db, weekend, fake_openf1):
 
 def test_admin_results_errors(client, db, weekend):
     admin = make_user(db, "boss@example.com", "boss", is_admin=True)
-    app.dependency_overrides[get_openf1] = lambda: FakeResultsClient(race_rows=[])
+    nothing = FakeResultsClient(race_rows=[])
+    nothing.sessions = {}  # no session has results yet
+    app.dependency_overrides[get_openf1] = lambda: nothing
     try:
         r = client.post("/api/admin/results", json={"race_id": weekend.id}, headers=auth_header(admin))
         assert r.status_code == 409

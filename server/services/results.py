@@ -4,6 +4,10 @@
 ``score_race`` turns them into driver_scores/constructor_scores using the pure
 rules in ``services/scoring.py``. Both upsert, so re-running a race is safe
 (e.g. after a post-race penalty changes the classification).
+
+Live scoring: during the weekend ``ingest_early_sessions`` stores qualifying
+and sprint positions (race_pos stays null) so those points show before the
+race. The race only counts as completed once its race result is stored.
 """
 
 from dataclasses import dataclass
@@ -22,6 +26,7 @@ from models import (
 from services import scoring
 from services.fantasy import score_fantasy
 from services.openf1 import OpenF1Client
+from services.races import races_with_results
 from services.seed import seed_constructors, upsert_driver
 
 
@@ -62,6 +67,26 @@ def normalize_session(rows: list[dict]) -> dict[int, SessionPlace]:
     }
 
 
+def _session_entries(db: Session, client: OpenF1Client, race: Race,
+                     session_key: int) -> tuple[dict[int, Driver], dict[int, int]]:
+    """Drivers by number, and each number's constructor id, from a session's
+    entry list — the team a driver raced for *at this event*. Unknown numbers
+    (stand-in drivers) are created at their starting salary, inactive."""
+    entries = client.fetch_drivers(session_key)
+    constructors = seed_constructors(db, entries, race.season)
+    team_by_number = {e["driver_number"]: constructors[e["team_name"]].id
+                      for e in entries if e.get("team_name") in constructors}
+    drivers = {d.driver_number: d for d in db.query(Driver).filter_by(season=race.season)}
+    for e in entries:
+        if e["driver_number"] not in drivers:
+            created = upsert_driver(db, e, race.season, constructors)
+            if created is not None:
+                created.is_active = False  # seeding decides who's on the grid
+                drivers[e["driver_number"]] = created
+    db.flush()
+    return drivers, team_by_number
+
+
 def ingest_race_results(db: Session, client: OpenF1Client, race: Race) -> int | None:
     """Fetch and store a race weekend's results. Returns the number of drivers
     stored, or None if OpenF1 has no race results yet."""
@@ -78,21 +103,7 @@ def ingest_race_results(db: Session, client: OpenF1Client, race: Race) -> int | 
         if race.has_sprint and race.sprint_session_key else []
     )
     finish = normalize_session(race_rows)
-
-    # The race session's entry list gives each driver's team *at this race*;
-    # unknown numbers (stand-in drivers) are created at their starting salary.
-    entries = client.fetch_drivers(race.race_session_key)
-    constructors = seed_constructors(db, entries, race.season)
-    team_by_number = {e["driver_number"]: constructors[e["team_name"]].id
-                      for e in entries if e.get("team_name") in constructors}
-    drivers = {d.driver_number: d for d in db.query(Driver).filter_by(season=race.season)}
-    for e in entries:
-        if e["driver_number"] not in drivers:
-            created = upsert_driver(db, e, race.season, constructors)
-            if created is not None:
-                created.is_active = False  # seeding decides who's on the grid
-                drivers[e["driver_number"]] = created
-    db.flush()
+    drivers, team_by_number = _session_entries(db, client, race, race.race_session_key)
 
     existing = {r.driver_id: r for r in db.query(DriverResult).filter_by(race_id=race.id)}
     stored = 0
@@ -113,6 +124,42 @@ def ingest_race_results(db: Session, client: OpenF1Client, race: Race) -> int | 
     # Race distance = the winner's lap count.
     winner = next((p for p in finish.values() if p.position == 1), None)
     race.total_laps = winner.laps if winner else race.total_laps
+    db.flush()
+    _store_constructor_results(db, race)
+    return stored
+
+
+def ingest_early_sessions(db: Session, client: OpenF1Client, race: Race) -> int | None:
+    """Store qualifying and sprint results before the race result is out, so
+    they can be scored live. Returns drivers stored, or None if neither session
+    has results yet or the race result is already stored (full ingestion owns
+    the race then)."""
+    if race.id in races_with_results(db, [race.id]):
+        return None
+    quali = normalize_session(
+        client.fetch_session_result(race.quali_session_key) if race.quali_session_key else []
+    )
+    sprint = normalize_session(
+        client.fetch_session_result(race.sprint_session_key)
+        if race.has_sprint and race.sprint_session_key else []
+    )
+    if not quali and not sprint:
+        return None
+    session_key = race.quali_session_key if quali else race.sprint_session_key
+    drivers, team_by_number = _session_entries(db, client, race, session_key)
+
+    existing = {r.driver_id: r for r in db.query(DriverResult).filter_by(race_id=race.id)}
+    stored = 0
+    for number in set(quali) | set(sprint):
+        driver = drivers.get(number)
+        if driver is None:
+            continue
+        row = existing.get(driver.id) or DriverResult(race_id=race.id, driver_id=driver.id)
+        row.constructor_id = team_by_number.get(number, driver.constructor_id)
+        row.quali_pos = quali[number].position if number in quali else None
+        row.sprint_pos = sprint[number].position if number in sprint else None
+        db.add(row)
+        stored += 1
     db.flush()
     _store_constructor_results(db, race)
     return stored
@@ -210,6 +257,18 @@ def process_race_results(db: Session, client: OpenF1Client, race: Race) -> Proce
     """Ingest + score one race and commit. None if results aren't out yet."""
     if ingest_race_results(db, client, race) is None:
         return None
+    return _score_and_commit(db, race)
+
+
+def process_early_sessions(db: Session, client: OpenF1Client, race: Race) -> ProcessedRace | None:
+    """Live scoring: ingest + score qualifying/sprint before the race result
+    is out, and commit. None if there's nothing new to score."""
+    if ingest_early_sessions(db, client, race) is None:
+        return None
+    return _score_and_commit(db, race)
+
+
+def _score_and_commit(db: Session, race: Race) -> ProcessedRace:
     drivers, constructors = score_race(db, race)
     score_fantasy(db, race)
     db.commit()

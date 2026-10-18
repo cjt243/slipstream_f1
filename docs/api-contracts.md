@@ -356,6 +356,7 @@ Response `200`:
   "race": { "...": "same shape as GET /races/{id}" },
   "locked": true,
   "scored": true,
+  "final": true,
   "winners": [ { "...": "lineup, as below" } ],
   "lineups": [
     {
@@ -381,7 +382,10 @@ Response `200`:
 - `lineups` covers every league member (an empty `elements` list = no team that
   weekend), ranked by points once scored (ties share a rank), else by name.
   `rank`/`points` are `null` until the race is scored.
-- `winners`: the top-ranked lineup(s) with a team, once scored; else `[]`.
+- `scored`: some points are in — live after qualifying/sprint. `final`: the
+  race result is in and scored. Live points rank the lineups but don't crown
+  a winner.
+- `winners`: the top-ranked lineup(s) with a team, once `final`; else `[]`.
 - `qualifying` is `[]` until qualifying results are ingested.
 
 Errors: `404` unknown race.
@@ -411,15 +415,19 @@ use the earlier rounds' finishes.
 
 Also (re)computes every team's fantasy points for the race.
 
+Before the race result is out, it scores whatever qualifying/sprint results
+OpenF1 has instead (`live: true`) — the race stays in `lockdown`, not
+`completed`, until its race result is stored.
+
 Request:
 ```json
 { "race_id": 1 }
 ```
 Response `200`:
 ```json
-{ "race_id": 1, "drivers_scored": 22, "constructors_scored": 11 }
+{ "race_id": 1, "drivers_scored": 22, "constructors_scored": 11, "live": false }
 ```
-Errors: `404` unknown race, `409` OpenF1 has no results for it yet.
+Errors: `404` unknown race, `409` OpenF1 has no results for any of its sessions yet.
 
 ### POST /admin/salary-adjust
 Apply a scored race's salary adjustments (LEAGUE_MECHANICS.md §12) and record

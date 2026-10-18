@@ -57,6 +57,7 @@ function Weekend({ raceId, prev, next }) {
           <Mono color={C.speed} size="text-xs">ROUND {race.round}</Mono>
           <RaceStatusPill status={race.status} />
           {race.has_sprint && <Pill label="SPRINT" color={C.purple} />}
+          {data.scored && !data.final && <Pill label="LIVE" color={C.apex} />}
         </div>
         <div className="font-bold" style={{ fontSize: 24, fontFamily: FONT.display, color: C.white, letterSpacing: "0.04em" }}>
           {race.name}
@@ -75,9 +76,11 @@ function Weekend({ raceId, prev, next }) {
             </div>
           </div>
         )}
-        {data.locked && !data.scored && (
+        {data.locked && !data.final && (
           <div className="mt-2" style={{ fontSize: 12, color: C.muted, fontFamily: FONT.body }}>
-            Points arrive a few hours after the race.
+            {data.scored
+              ? `${race.has_sprint ? "Qualifying and sprint" : "Qualifying"} points so far — race points arrive a few hours after the race.`
+              : "Points arrive after qualifying."}
           </div>
         )}
       </Card>

@@ -1,13 +1,17 @@
 name: Race autopilot
 
-# Every two hours: refresh the calendar and grid from OpenF1, then ingest,
+# On a schedule: refresh the calendar and grid from OpenF1, then ingest,
 # score and finalize (salaries, contract settlement, team-value floor) any
-# race whose results are due, and email lineup reminders in the 24h before the
+# race whose results are due, score a locked weekend's qualifying/sprint
+# live, and email lineup reminders in the 24h before the
 # next lockdown (server/cli.py autopilot). Safe to re-run; it does nothing
 # between race weekends. Can also be started by hand.
 on:
   schedule:
-    - cron: "17 */2 * * *"
+    # Hourly Fri–Sun so qualifying/sprint points show soon after each
+    # session (live scoring); every two hours the rest of the week.
+    - cron: "17 * * * 5,6,0"
+    - cron: "17 */2 * * 1-4"
   workflow_dispatch:
 
 jobs:

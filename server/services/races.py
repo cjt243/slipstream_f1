@@ -3,8 +3,9 @@
 Status lifecycle for a race weekend:
 - ``upcoming``  — before lockdown; team changes allowed.
 - ``lockdown``  — from lockdown (first competitive session) until the race is
-  scored; no team changes.
-- ``completed`` — results are in.
+  scored; no team changes. Qualifying and sprint results may already be in
+  (scored live, see services/results.py).
+- ``completed`` — the race's own result is in.
 """
 
 from datetime import datetime, timezone
@@ -33,8 +34,9 @@ def race_status(race: Race, has_results: bool, now: datetime) -> str:
 
 
 def races_with_results(db: Session, race_ids: list[int] | None = None) -> set[int]:
-    """Ids of races that have ingested results."""
-    q = db.query(DriverResult.race_id).distinct()
+    """Ids of races whose race result is in. Qualifying/sprint-only results
+    (stored before the race) don't count."""
+    q = db.query(DriverResult.race_id).filter(DriverResult.race_pos.is_not(None)).distinct()
     if race_ids is not None:
         q = q.filter(DriverResult.race_id.in_(race_ids))
     return {race_id for (race_id,) in q}
