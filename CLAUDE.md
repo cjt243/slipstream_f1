@@ -83,7 +83,7 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 ### Phase 1 — MVP (build first)
 - [x] User auth (magic links)
 - [x] Driver + constructor roster (seeded from static data)
-- [ ] Contract signing UI (budget-constrained, 1–5 race contracts)
+- [x] Contract signing UI (budget-constrained, 1–5 race contracts)
 - [ ] Race weekend scoring engine
 - [ ] Leaderboard per race + season total
 - [ ] Default league seeded at setup (single-league for now)
