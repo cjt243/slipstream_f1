@@ -89,6 +89,7 @@ def ingest_race_results(db: Session, client: OpenF1Client, race: Race) -> int | 
         if e["driver_number"] not in drivers:
             created = upsert_driver(db, e, race.season, constructors)
             if created is not None:
+                created.is_active = False  # seeding decides who's on the grid
                 drivers[e["driver_number"]] = created
     db.flush()
 

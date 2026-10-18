@@ -82,7 +82,9 @@ Reference data is for the league's current season (`SEASON` setting, default
 2026). Both lists are public (no auth) and empty until the season is seeded.
 
 ### GET /drivers
-Ordered by driver number. `code` is the 3-letter abbreviation (may be `null`).
+Active drivers (the current entry list) ordered by driver number. `code` is
+the 3-letter abbreviation (may be `null`). `salary_change` is the element's
+most recent post-race adjustment (`null` before any). Constructors have it too.
 
 Response `200`:
 ```json
@@ -97,6 +99,7 @@ Response `200`:
       "constructor_name": "McLaren",
       "constructor_color": "#F47600",
       "salary": 34000000,
+      "salary_change": -400000,
       "season": 2026
     }
   ]
@@ -110,7 +113,7 @@ Response `200`:
 ```json
 {
   "constructors": [
-    { "id": 3, "name": "McLaren", "color": "#F47600", "salary": 30000000, "season": 2026 }
+    { "id": 3, "name": "McLaren", "color": "#F47600", "salary": 30000000, "salary_change": 1200000, "season": 2026 }
   ]
 }
 ```
@@ -341,7 +344,9 @@ Response `200`:
 Errors: `404` unknown race, `409` OpenF1 has no results for it yet.
 
 ### POST /admin/salary-adjust
-Recompute salaries after a race (LEAGUE_MECHANICS.md §12).
+Apply a scored race's salary adjustments (LEAGUE_MECHANICS.md §12) and record
+them in `salary_history`. Each race is adjusted once, in round order. Salary
+moves change team value, not bank balances (settle-on-release model).
 
 Request:
 ```json
@@ -349,5 +354,7 @@ Request:
 ```
 Response `200`:
 ```json
-{ "race_id": 1, "adjustments": 30 }
+{ "race_id": 1, "adjustments": 33 }
 ```
+Errors: `404` unknown race; `409` not scored yet, already adjusted, or an
+earlier round still needs adjusting.

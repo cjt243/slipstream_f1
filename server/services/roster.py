@@ -6,11 +6,11 @@ from models import Constructor, Driver
 
 
 def list_drivers(db: Session, season: int) -> list[Driver]:
-    """All drivers in a season (constructor eagerly loaded), by number."""
+    """The season's active drivers (constructor eagerly loaded), by number."""
     return (
         db.query(Driver)
         .options(joinedload(Driver.constructor))
-        .filter(Driver.season == season)
+        .filter(Driver.season == season, Driver.is_active.is_(True))
         .order_by(Driver.driver_number)
         .all()
     )

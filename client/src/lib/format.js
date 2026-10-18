@@ -33,3 +33,9 @@ export function formatCountdown(iso, now = Date.now()) {
   const sec = String(s % 60).padStart(2, "0");
   return d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m ${sec}s`;
 }
+
+// Signed salary movement, e.g. "▲ £0.4M" / "▼ £1.2M"; null when unchanged/unknown.
+export function formatDelta(pounds) {
+  if (!pounds) return null;
+  return `${pounds > 0 ? "▲" : "▼"} £${(Math.abs(pounds) / 1_000_000).toFixed(1)}M`;
+}

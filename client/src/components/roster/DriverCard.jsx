@@ -1,6 +1,6 @@
 import { C, FONT } from "../../lib/tokens";
 import { Mono, Pill } from "../ui";
-import { formatGBP } from "../../lib/format";
+import SalaryTag from "./SalaryTag";
 
 /** One driver: name, number, constructor badge (team color), salary. */
 export default function DriverCard({ driver }) {
@@ -24,7 +24,7 @@ export default function DriverCard({ driver }) {
           <Pill label={driver.constructor_name} color={color} />
         </div>
       </div>
-      <Mono color={C.speed} size="text-sm">{formatGBP(driver.salary)}</Mono>
+      <SalaryTag salary={driver.salary} change={driver.salary_change} />
     </div>
   );
 }

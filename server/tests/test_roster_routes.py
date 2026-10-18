@@ -9,6 +9,8 @@ def test_drivers_lists_current_season_with_constructor(client, db):
     make_driver(db, mcl, 1, "Lando Norris", code="NOR", salary=34_000_000)
     old = make_constructor(db, "McLaren", season=2025)
     make_driver(db, old, 4, "Lando Norris", season=2025)  # other season — excluded
+    benched = make_driver(db, mcl, 40, "Stand In")
+    benched.is_active = False  # not on the current grid — excluded
 
     r = client.get("/api/drivers")
     assert r.status_code == 200
@@ -23,6 +25,7 @@ def test_drivers_lists_current_season_with_constructor(client, db):
         "constructor_name": "McLaren",
         "constructor_color": "#FF8000",
         "salary": 34_000_000,
+        "salary_change": None,
         "season": 2026,
     }
 

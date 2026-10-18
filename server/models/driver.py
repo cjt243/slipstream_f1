@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, String, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
@@ -18,6 +18,11 @@ class Driver(Base):
         ForeignKey("constructors.id", ondelete="CASCADE"), index=True, nullable=False
     )
     salary: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # On the current grid. Stand-ins who raced once stay in the table (their
+    # results and scores reference them) but can't be signed.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
     season: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
 
     constructor: Mapped["Constructor"] = relationship(back_populates="drivers")  # noqa: F821
