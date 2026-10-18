@@ -71,3 +71,18 @@ def test_jwt_round_trip_and_tampering(db):
 def test_magic_link_points_at_frontend_verify_page(monkeypatch):
     monkeypatch.setattr(auth.settings, "frontend_url", "https://slipstream.example/")
     assert auth.build_magic_link("abc") == "https://slipstream.example/auth/verify?token=abc"
+
+
+def test_unknown_email_is_not_created_when_creation_disallowed(db):
+    assert auth.get_or_create_user(db, "new@example.com", "new", allow_create=False) is None
+    assert db.query(User).count() == 0
+
+    existing = auth.get_or_create_user(db, "max@example.com", "max")
+    assert auth.get_or_create_user(db, "max@example.com", "max", allow_create=False).id == existing.id
+
+
+def test_registration_is_closed_by_default(monkeypatch):
+    from config import Settings
+
+    monkeypatch.delenv("REGISTRATION_OPEN", raising=False)
+    assert Settings(_env_file=None).registration_open is False

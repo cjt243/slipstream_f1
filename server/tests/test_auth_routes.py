@@ -5,6 +5,12 @@ import pytest
 from routes import auth as auth_routes
 
 
+@pytest.fixture(autouse=True)
+def open_registration(monkeypatch):
+    # Most tests exercise sign-up; the closed-registration tests override this.
+    monkeypatch.setattr(auth_routes.settings, "registration_open", True)
+
+
 @pytest.fixture
 def sent_links(monkeypatch):
     links: list[tuple[str, str]] = []
@@ -104,3 +110,26 @@ def test_unhandled_errors_use_error_shape(db, monkeypatch):
         app.dependency_overrides.pop(get_db, None)
     assert r.status_code == 500
     assert r.json() == {"error": "Internal server error"}
+
+
+def test_closed_registration_ignores_unknown_emails(client, sent_links, db, monkeypatch):
+    from models import User
+
+    monkeypatch.setattr(auth_routes.settings, "registration_open", False)
+    r = client.post("/api/auth/register", json={"email": "stranger@example.com", "username": "s"})
+    # Identical response to a real sign-in request, but nothing is created or sent.
+    assert r.status_code == 200
+    assert r.json() == {"message": auth_routes.REGISTER_MESSAGE}
+    assert sent_links == []
+    assert db.query(User).filter_by(email="stranger@example.com").count() == 0
+
+
+def test_closed_registration_still_signs_in_existing_users(client, sent_links, monkeypatch):
+    client.post("/api/auth/register", json={"email": "owner@example.com", "username": "owner"})
+    monkeypatch.setattr(auth_routes.settings, "registration_open", False)
+
+    r = client.post("/api/auth/register", json={"email": "Owner@Example.com", "username": "x"})
+    assert r.status_code == 200
+    assert [email for email, _ in sent_links] == ["owner@example.com", "owner@example.com"]
+    token = _token_from(sent_links[-1][1])
+    assert client.post("/api/auth/verify", json={"token": token}).status_code == 200

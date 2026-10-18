@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, status
 
+from config import settings
 from dependencies import CurrentUser, DbSession
 from schemas.auth import (
     AuthResponse,
@@ -21,8 +22,13 @@ REGISTER_MESSAGE = "If that email is valid, a magic link has been sent."
 
 @router.post("/register", response_model=RegisterResponse)
 def register(body: RegisterRequest, db: DbSession) -> RegisterResponse:
-    # Same response for new and existing emails — no account enumeration.
-    user = auth_service.get_or_create_user(db, body.email, body.username)
+    # Same response for new, existing and (when registration is closed)
+    # unknown emails — no account enumeration.
+    user = auth_service.get_or_create_user(
+        db, body.email, body.username, allow_create=settings.registration_open
+    )
+    if user is None:
+        return RegisterResponse(message=REGISTER_MESSAGE)
     raw_token = auth_service.create_magic_token(db, user.id)
     db.commit()
     try:

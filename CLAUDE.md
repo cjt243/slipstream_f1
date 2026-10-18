@@ -173,6 +173,7 @@ pydantic-settings (`server/config.py`) from `server/.env`.
 PORT=3001
 SECRET_KEY=your_secret_here
 JWT_EXPIRY_DAYS=7
+REGISTRATION_OPEN=true                         # default false: only existing users can sign in
 TURSO_DATABASE_URL=libsql://your-db.turso.io  # omit locally to use SQLite fallback
 TURSO_AUTH_TOKEN=your_token_here               # omit locally
 
@@ -186,6 +187,8 @@ VITE_API_URL=http://localhost:3001/api         # client/.env — leave unset on 
 Production values (`TURSO_*`, `SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`) are set in the Vercel project's
 environment variables. The migration job reads `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` from
 GitHub Actions secrets (`production` environment or repo-level).
+Registration is **closed in production** (`REGISTRATION_OPEN` unset): only emails already in the
+`users` table can request a magic link; unknown emails get the same 200 but nothing is created or sent.
 The server refuses to start on Vercel (`VERCEL` env set) while `SECRET_KEY` is the dev default,
 so set it for both Production and Preview environments. On Vercel production it also refuses to
 start without `TURSO_DATABASE_URL` (the `dev.db` fallback can't be opened there). If
