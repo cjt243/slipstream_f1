@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, UniqueConstraint, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
@@ -62,3 +62,7 @@ class FantasyScore(Base):
         ForeignKey("races.id", ondelete="CASCADE"), index=True, nullable=False
     )
     total_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # True when total_points was raised to the forgotten-lineup floor.
+    floor_applied: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )

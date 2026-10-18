@@ -130,6 +130,7 @@ function LineupCard({ lineup }) {
             {lineup.username}
             {me && <span style={{ fontSize: 11, color: C.ghost, fontFamily: FONT.mono }}> · YOU</span>}
           </div>
+          {lineup.floor_applied && <Pill label="MIN" color={C.ghost} />}
         </div>
         {lineup.points != null ? (
           <Mono color={lineup.rank === 1 ? C.gold : C.white} size="text-base">{lineup.points}</Mono>
@@ -139,7 +140,12 @@ function LineupCard({ lineup }) {
       </button>
       {open && (
         <div className="mt-2">
-          {lineup.elements.length === 0 && <Muted>No lineup this weekend.</Muted>}
+          {lineup.floor_applied && (
+            <div className="mb-2" style={{ fontSize: 12, color: C.muted, fontFamily: FONT.body }}>
+              No full lineup — scored the minimum ({lineup.points}).
+            </div>
+          )}
+          {lineup.elements.length === 0 && !lineup.floor_applied && <Muted>No lineup this weekend.</Muted>}
           {lineup.elements.map((e) => (
             <div
               key={`${e.element_type}-${e.element_id}`}

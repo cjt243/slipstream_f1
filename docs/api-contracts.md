@@ -380,7 +380,7 @@ Response `200`:
   "lineups": [
     {
       "user_id": 2, "username": "FakeMikeGross", "is_current_user": true,
-      "rank": 1, "points": 935,
+      "rank": 1, "points": 935, "floor_applied": false,
       "elements": [
         { "element_type": "driver", "element_id": 9, "name": "Charles Leclerc", "code": "LEC",
           "color": "#E80020", "constructor_name": "Ferrari", "points": 166,
@@ -406,6 +406,9 @@ Response `200`:
   a winner.
 - `winners`: the top-ranked lineup(s) with a team, once `final`; else `[]`.
 - `is_star`: the owner's star driver; its `points` are already doubled.
+- `floor_applied`: the lineup was incomplete or empty, so its points were
+  raised to the minimum (600, capped at the lowest complete team's score;
+  only once `final`).
 - `qualifying` is `[]` until qualifying results are ingested.
 
 Errors: `404` unknown race.
