@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { Card, Label, Mono, Pill, ToggleGroup } from "../components/ui";
 import { C, FONT } from "../lib/tokens";
+import { formatGBP } from "../lib/format";
 import { useRaces } from "../hooks/useRaces";
 import { useWeekend } from "../hooks/useWeekend";
 import LockdownTimer from "../components/race/LockdownTimer";
@@ -85,8 +86,10 @@ function Weekend({ raceId, prev, next }) {
         )}
       </Card>
 
-      <ToggleGroup options={["lineups", "qualifying"]} value={tab} onChange={setTab} />
-      {tab === "lineups" ? <Lineups data={data} /> : <Qualifying data={data} />}
+      <ToggleGroup options={["lineups", "moves", "qualifying"]} value={tab} onChange={setTab} />
+      {tab === "lineups" && <Lineups data={data} />}
+      {tab === "moves" && <Moves data={data} />}
+      {tab === "qualifying" && <Qualifying data={data} />}
     </>
   );
 }
@@ -175,6 +178,107 @@ function LineupCard({ lineup }) {
         </div>
       )}
     </Card>
+  );
+}
+
+// What each team changed since the previous round: signings, releases and
+// expiries, plus its star pick. Hidden like lineups until lockdown.
+function Moves({ data }) {
+  const signed = data.lineups.reduce((n, lu) => n + lu.moves.signed.length, 0);
+  const dropped = data.lineups.reduce((n, lu) => n + lu.moves.dropped.length, 0);
+  return (
+    <>
+      {data.locked && data.lineups.length > 0 && (
+        <Label>
+          {signed} signing{signed === 1 ? "" : "s"} · {dropped} out
+        </Label>
+      )}
+      {data.lineups.length === 0 && data.hidden_lineups === 0 && (
+        <Card><Muted>No teams in the league yet.</Muted></Card>
+      )}
+      {data.lineups.map((lu) => (
+        <MovesCard key={lu.user_id} lineup={lu} />
+      ))}
+      {data.hidden_lineups > 0 && (
+        <Card>
+          <Muted>
+            {data.hidden_lineups} other team{data.hidden_lineups === 1 ? "'s" : "s'"} moves revealed at lockdown.
+          </Muted>
+        </Card>
+      )}
+    </>
+  );
+}
+
+function MovesCard({ lineup }) {
+  const me = lineup.is_current_user;
+  const { signed, dropped, kept } = lineup.moves;
+  const star = lineup.elements.find((e) => e.is_star);
+  const quiet = signed.length === 0 && dropped.length === 0;
+  return (
+    <Card style={{ paddingTop: 12, paddingBottom: 12, background: me ? `${C.speed}10` : undefined }}>
+      <div className="flex items-center justify-between">
+        <div className="truncate" style={{ fontSize: 16, fontFamily: FONT.display, color: me ? C.speed : C.white, letterSpacing: "0.03em" }}>
+          {lineup.username}
+          {me && <span style={{ fontSize: 11, color: C.ghost, fontFamily: FONT.mono }}> · YOU</span>}
+        </div>
+        {!quiet && (
+          <div className="flex gap-2">
+            {signed.length > 0 && <Mono color={C.apex} size="text-sm">+{signed.length}</Mono>}
+            {dropped.length > 0 && <Mono color={C.danger} size="text-sm">−{dropped.length}</Mono>}
+          </div>
+        )}
+      </div>
+      <div className="mt-2">
+        {signed.map((m) => (
+          <MoveRow key={`in-${m.element_type}-${m.element_id}`} move={m} />
+        ))}
+        {dropped.map((m) => (
+          <MoveRow key={`out-${m.element_type}-${m.element_id}`} move={m} />
+        ))}
+      </div>
+      <div
+        className="pt-2"
+        style={{ fontSize: 12, color: C.muted, fontFamily: FONT.body, borderTop: quiet ? "none" : `1px solid ${C.border}` }}
+      >
+        {star && (
+          <span style={{ color: C.gold }}>
+            ★ {star.name} 2×{" · "}
+          </span>
+        )}
+        {quiet
+          ? kept
+            ? `No changes — kept all ${kept}.`
+            : "No team this weekend."
+          : kept
+            ? `Kept ${kept}.`
+            : "All-new lineup."}
+      </div>
+    </Card>
+  );
+}
+
+function MoveRow({ move }) {
+  const signed = move.status === "active";
+  return (
+    <div className="flex items-center justify-between py-2" style={{ borderTop: `1px solid ${C.border}` }}>
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-1 h-6 rounded" style={{ background: move.color || C.muted, opacity: signed ? 1 : 0.4 }} />
+        <div className="min-w-0">
+          <div className="truncate" style={{ fontSize: 14, fontFamily: FONT.display, color: signed ? C.white : C.muted }}>
+            {move.name}
+          </div>
+          <div style={{ fontSize: 11, fontFamily: FONT.mono, color: C.ghost }}>
+            {signed
+              ? `${formatGBP(move.signed_salary)} · ${move.contract_length} RACE${move.contract_length === 1 ? "" : "S"}`
+              : move.status === "released"
+                ? "RELEASED"
+                : "CONTRACT ENDED"}
+          </div>
+        </div>
+      </div>
+      <Pill label={signed ? "IN" : "OUT"} color={signed ? C.apex : C.danger} />
+    </div>
   );
 }
 

@@ -8,7 +8,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from dependencies import DbSession, get_optional_user
 from models import User
 from routes.races import race_detail
-from schemas.weekend import LineupElementResponse, LineupResponse, QualiEntryResponse, WeekendResponse
+from schemas.weekend import (
+    LineupElementResponse,
+    LineupResponse,
+    MoveResponse,
+    MovesResponse,
+    QualiEntryResponse,
+    WeekendResponse,
+)
 from services import races as race_service
 from services.race_weekend import Lineup, race_weekend
 from services.seed import seed_default_league
@@ -26,6 +33,11 @@ def _lineup(lu: Lineup, viewer: User | None) -> LineupResponse:
         points=lu.points,
         floor_applied=lu.floor_applied,
         elements=[LineupElementResponse(**e.__dict__) for e in lu.elements],
+        moves=MovesResponse(
+            signed=[MoveResponse(**m.__dict__) for m in lu.moves.signed],
+            dropped=[MoveResponse(**m.__dict__) for m in lu.moves.dropped],
+            kept=lu.moves.kept,
+        ),
     )
 
 
