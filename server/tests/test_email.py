@@ -16,7 +16,7 @@ def test_magic_link_is_printed_when_resend_key_unset(monkeypatch, capsys):
     assert "token=abc" in capsys.readouterr().out
 
 
-def test_resend_failure_raises_runtime_error(monkeypatch):
+def test_resend_failure_raises_runtime_error(monkeypatch, caplog):
     monkeypatch.setattr(email.settings, "resend_api_key", "re_test")
 
     def boom(params: object) -> None:
@@ -25,3 +25,5 @@ def test_resend_failure_raises_runtime_error(monkeypatch):
     monkeypatch.setattr(email.resend.Emails, "send", boom)
     with pytest.raises(RuntimeError):
         email.send_magic_link("a@example.com", "http://x/auth/verify?token=abc")
+    # Resend's reason must reach the logs; the API response stays generic.
+    assert "bad request" in caplog.text
