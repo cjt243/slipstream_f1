@@ -2,7 +2,12 @@
 
 A user's points for a race are the summed fantasy points of every driver and
 constructor on their team for that round: contracts covering the round that
-hadn't been released before it. Their star driver's points count twice. Rows are only written for members with a
+hadn't been released before it. Their star driver's points count twice.
+
+Forgotten-lineup floor: once the race result is in, a member whose team that
+round was incomplete (or empty) scores at least LINEUP_FLOOR — capped at the
+lowest complete team's score, so skipping a lineup never beats playing one.
+No complete team that race (e.g. before the league started) → no floor. Rows are only written for members with a
 team that race, so pre-league races don't clutter the standings.
 """
 
@@ -23,7 +28,10 @@ from models import (
     User,
 )
 from models.league import STARTING_BUDGET
-from services.contracts import get_element, last_round, roster_contracts
+from services.contracts import MAX_ON_ROSTER, get_element, last_round, roster_contracts
+from services.races import races_with_results
+
+LINEUP_FLOOR = 600
 
 
 def contracts_for_round(db: Session, rnd: int) -> list[Contract]:
@@ -42,12 +50,27 @@ def score_fantasy(db: Session, race: Race) -> int:
                 for s in db.query(ConstructorScore).filter_by(race_id=race.id)}
     stars = {(s.user_id, s.league_id): s.driver_id for s in db.query(StarDriver).filter_by(race_id=race.id)}
     totals: dict[tuple[int, int], int] = {}
+    counts: dict[tuple[int, int], dict[ElementType, int]] = {}
     for c in contracts_for_round(db, race.round):
         pts = (driver_pts if c.element_type == ElementType.DRIVER else team_pts).get(c.element_id, 0)
         key = (c.user_id, c.league_id)
         if c.element_type == ElementType.DRIVER and stars.get(key) == c.element_id:
             pts *= 2
         totals[key] = totals.get(key, 0) + pts
+        per_type = counts.setdefault(key, {})
+        per_type[c.element_type] = per_type.get(c.element_type, 0) + 1
+
+    floored: set[tuple[int, int]] = set()
+    if race.id in races_with_results(db, [race.id]):
+        complete = {key for key, per_type in counts.items() if per_type == MAX_ON_ROSTER}
+        for league_id in {lid for _, lid in complete}:
+            floor = min(LINEUP_FLOOR, min(totals[k] for k in complete if k[1] == league_id))
+            members = db.query(LeagueMember.user_id).filter_by(league_id=league_id)
+            for (user_id,) in members:
+                key = (user_id, league_id)
+                if key not in complete and totals.get(key, 0) < floor:
+                    totals[key] = floor
+                    floored.add(key)
 
     existing = {(f.user_id, f.league_id): f for f in db.query(FantasyScore).filter_by(race_id=race.id)}
     for key, row in existing.items():
@@ -58,6 +81,7 @@ def score_fantasy(db: Session, race: Race) -> int:
             user_id=user_id, league_id=league_id, race_id=race.id
         )
         row.total_points = points
+        row.floor_applied = (user_id, league_id) in floored
         db.add(row)
     db.flush()
     return len(totals)

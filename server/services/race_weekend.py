@@ -50,6 +50,7 @@ class Lineup:
     rank: int | None  # None until the race is scored
     points: int | None
     elements: list[LineupElement]
+    floor_applied: bool = False  # incomplete lineup raised to the minimum score
 
 
 @dataclass(frozen=True)
@@ -79,7 +80,7 @@ def _ranked(lineups: list[Lineup]) -> list[Lineup]:
     out: list[Lineup] = []
     for i, lu in enumerate(ordered):
         rank = out[-1].rank if out and out[-1].points == lu.points else i + 1
-        out.append(Lineup(lu.user, rank, lu.points, lu.elements))
+        out.append(Lineup(lu.user, rank, lu.points, lu.elements, lu.floor_applied))
     return out
 
 
@@ -93,8 +94,7 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
     scored = bool(driver_scores)
     final = scored and race.id in races_with_results(db, [race.id])
     results = {r.driver_id: r for r in db.query(DriverResult).filter_by(race_id=race.id)}
-    fantasy = {f.user_id: f.total_points
-               for f in db.query(FantasyScore).filter_by(race_id=race.id, league_id=league_id)}
+    fantasy = {f.user_id: f for f in db.query(FantasyScore).filter_by(race_id=race.id, league_id=league_id)}
     teams = {t.id: t for t in db.query(Constructor).filter_by(season=race.season)}
     drivers = {d.id: d for d in db.query(Driver).filter_by(season=race.season)}
 
@@ -127,8 +127,9 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
         contracts = by_user.get(user.id, [])
         elements = sorted((element(c) for c in contracts),
                           key=lambda e: (e.element_type != ElementType.DRIVER, -(e.points or 0), e.name))
-        points = fantasy.get(user.id, 0) if scored else None
-        return Lineup(user, None, points, elements)
+        row = fantasy.get(user.id)
+        points = (row.total_points if row else 0) if scored else None
+        return Lineup(user, None, points, elements, bool(row and row.floor_applied))
 
     members = (
         db.query(User)

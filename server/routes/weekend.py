@@ -24,6 +24,7 @@ def _lineup(lu: Lineup, viewer: User | None) -> LineupResponse:
         is_current_user=viewer is not None and lu.user.id == viewer.id,
         rank=lu.rank,
         points=lu.points,
+        floor_applied=lu.floor_applied,
         elements=[LineupElementResponse(**e.__dict__) for e in lu.elements],
     )
 

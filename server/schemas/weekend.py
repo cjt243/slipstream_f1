@@ -25,6 +25,7 @@ class LineupResponse(BaseModel):
     is_current_user: bool
     rank: int | None
     points: int | None
+    floor_applied: bool  # incomplete lineup: points raised to the minimum
     elements: list[LineupElementResponse]
 
 

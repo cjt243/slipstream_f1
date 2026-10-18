@@ -116,6 +116,10 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 - **Star driver** (modelled on GridRival's talent driver): before lockdown each user may pick one of their drivers
   earning **under £18M** (`STAR_MAX_SALARY`, current salary) as the current race's star; its points count double
   in fantasy scoring. Picked per race (no carry-over); releasing that driver clears the pick.
+- **Forgotten-lineup floor** (owner's number, to revisit once league averages are known): once a race is final,
+  a member whose team was incomplete or empty that round scores at least `LINEUP_FLOOR` = 600, capped at the
+  lowest complete team's score so skipping never beats playing. No complete team that race → no floor (keeps
+  pre-league rounds clean). Applied in `score_fantasy`; flagged by `fantasy_scores.floor_applied`.
 
 
 ---
@@ -140,7 +144,8 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
   - [x] Lineup reminder email in the 24h before lockdown to members with an incomplete team (autopilot +
     `POST /admin/reminders`)
   - [x] Star driver: one driver under £18M per race scores double (`PUT/DELETE /contracts/star`)
-- [ ] Minimum points threshold for teams that forget to set their lineup
+- [x] Minimum points threshold for teams that forget to set their lineup
+  (600, capped at the lowest complete team; `fantasy_scores.floor_applied`)
 
 ### Phase 3 — Polish
 - [ ] Animated score reveals post-race
@@ -180,7 +185,8 @@ CREATE TABLE driver_scores ( ... );        -- race_id, driver_id, quali_pts, spr
 CREATE TABLE constructor_scores ( ... );   -- race_id, constructor_id, quali_pts, race_pts, total_pts
 
 -- Fantasy scores (per user per league per race; only for members with a team that race)
-CREATE TABLE fantasy_scores ( ... );       -- user_id, league_id, race_id, total_points
+CREATE TABLE fantasy_scores ( ... );       -- user_id, league_id, race_id, total_points,
+                                           -- floor_applied (incomplete lineup raised to the minimum)
 
 -- Salary history (track fluctuations for team value calc)
 CREATE TABLE salary_history ( ... );       -- element_type, element_id, race_id, salary_before, salary_after
