@@ -40,4 +40,7 @@ def send_magic_link(email: str, link: str) -> None:
             }
         )
     except Exception as exc:  # Resend raises several error types; normalise them.
+        # The caller only shows a generic message, so record Resend's reason
+        # (e.g. unverified sender domain) where the logs can see it.
+        logger.exception("Resend failed to send magic link from %r: %s", settings.email_from, exc)
         raise RuntimeError("Failed to send magic-link email") from exc
