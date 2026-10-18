@@ -4,6 +4,7 @@
     uv run python cli.py ingest-results --round 17 [--season 2026]
     uv run python cli.py ingest-season [--season 2026]   # ingest + score + adjust salaries
     uv run python cli.py adjust-salaries --round 17 [--season 2026]
+    uv run python cli.py autopilot [--season 2026]   # scheduled job: refresh + process due races
     uv run python cli.py create-admin --email you@example.com
 
 Connects to whatever database the environment selects (dev.db locally, Turso
@@ -21,7 +22,7 @@ from services import races as race_service
 from services.openf1 import OpenF1Client
 from services.results import process_race_results
 from services.salary import is_adjusted
-from services.weekend import finalize_race
+from services.weekend import finalize_race, process_due_races
 from services.seed import seed_all
 
 app = typer.Typer(help="Slipstream admin commands.", no_args_is_help=True)
@@ -102,6 +103,20 @@ def adjust(
             raise typer.Exit(1) from exc
         db.commit()
         _echo({"round": round, "adjustments": count})
+
+
+@app.command()
+def autopilot(season: int = typer.Option(settings.season, help="Season.")) -> None:
+    """Refresh the calendar and grid, then ingest, score and finalize every
+    race whose results are due. Safe to run as often as you like."""
+    client = OpenF1Client()
+    try:
+        with SessionLocal() as db:
+            _echo(seed_all(db, client, season))
+            for line in process_due_races(db, client, season, race_service.utcnow()):
+                typer.echo(line)
+    finally:
+        client.close()
 
 
 @app.command("create-admin")

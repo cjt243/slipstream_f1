@@ -33,7 +33,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 ---
 
 ## Project Structure
-```text (planned — not yet created)
+```text
 /
 ├── client/                  # React frontend (Vite)
 │   ├── src/
@@ -50,12 +50,13 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── models/              # SQLAlchemy ORM models
 │   │   └── enums.py         # All shared Enum types (ElementType, etc.)
 │   ├── schemas/             # Pydantic request/response models
-│   ├── services/            # Business logic (auth, scoring, contracts, OpenF1, email)
+│   ├── services/            # Business logic: auth, email, openf1, seed, roster, races, results
+│   │                        # (ingestion), scoring (pure rules), salary, contracts, fantasy, weekend
 │   ├── data/                # Static seed data (salaries, circuit laps)
 │   ├── tests/               # pytest suite (conftest.py, test_*.py per service/route)
 │   ├── dependencies.py      # get_db, get_current_user, get_admin_user, get_optional_user
 │   ├── app.py               # Entry point (FastAPI app, router registration)
-│   ├── cli.py               # CLI commands (seed, ingest, etc.)
+│   ├── cli.py               # CLI: seed, ingest-results, ingest-season, adjust-salaries, autopilot, create-admin
 │   └── pyproject.toml       # Python dependencies
 │
 ├── CLAUDE.md                # This file
@@ -243,6 +244,15 @@ Three environments — each uses a different database and cannot touch the other
 - On push to `main` only, after tests pass, the `migrate` job runs `alembic upgrade head` against production Turso (fails loudly if the Turso secrets are missing)
 - CI must pass before merging — never merge a branch with failing tests
 
+### Race autopilot (GitHub Actions)
+- `.github/workflows/autopilot.yml` runs `cli.py autopilot` every two hours (and on manual dispatch) against
+  production Turso: it refreshes the calendar and grid from OpenF1, then for every race that started 4+ hours ago
+  and isn't finalized, in round order: ingest results → score drivers/constructors/fantasy teams → adjust
+  salaries → settle expired contracts → apply the £100M team-value floor. Idempotent; between race weekends it
+  only refreshes the calendar.
+- Manual overrides: `POST /api/admin/results` re-scores a race (e.g. after a late penalty; salaries aren't
+  re-adjusted), `POST /api/admin/salary-adjust` finalizes one.
+
 ### Production ops (GitHub Actions)
 - `.github/workflows/ops.yml` runs a `server/cli.py` command against production Turso on manual dispatch
   (`command` choice + optional `args`). It applies migrations first and shares the `migrate-production`
@@ -357,7 +367,7 @@ seed row for it to that test.
 - Test routes via FastAPI `TestClient` for integration coverage
 - Never mock the DB — always use the real in-memory SQLite fixture
 - Scoring and salary functions must be pure and unit-testable without a DB session where possible
-- Verify the frontend renders with Playwright: `uv run --with playwright python <script>` (run `playwright install chromium` once). Start the dev server first and wait for elements — the mock-data fallback loads async.
+- Verify the frontend renders with Playwright: `uv run --with playwright python <script>` (run `playwright install chromium` once). Start the API (`uv run uvicorn app:app --port 3001`, with a seeded `dev.db`) and the Vite dev server first, and wait for elements — data loads async. In a Claude cloud session Chromium lives in `/opt/pw-browsers`; pass its path as `executable_path`. To test signed-in pages, put a JWT for a local user (`services.auth.create_jwt`) in `localStorage['slipstream_jwt']`.
 
 ### React / Frontend
 - Functional components + hooks only

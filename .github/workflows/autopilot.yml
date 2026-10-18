@@ -1,0 +1,47 @@
+name: Race autopilot
+
+# Every two hours: refresh the calendar and grid from OpenF1, then ingest,
+# score and finalize (salaries, contract settlement, team-value floor) any
+# race whose results are due (server/cli.py autopilot). Safe to re-run; it
+# does nothing between race weekends. Can also be started by hand.
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+jobs:
+  autopilot:
+    name: Process due races
+    runs-on: ubuntu-latest
+    environment: production
+    # Shares the migrate job's group so it never overlaps a migration.
+    concurrency:
+      group: migrate-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: server
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check Turso secrets are set
+        run: |
+          if [ -z "$TURSO_DATABASE_URL" ] || [ -z "$TURSO_AUTH_TOKEN" ]; then
+            echo "::error::TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set as secrets for the 'production' environment (or the repo)."
+            exit 1
+          fi
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: server/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Process due races
+        run: uv run python cli.py autopilot

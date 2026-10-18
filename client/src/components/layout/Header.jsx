@@ -1,7 +1,14 @@
+import { Link } from "react-router-dom";
 import { C, FONT } from "../../lib/tokens";
+import { useRaces } from "../../hooks/useRaces";
 
-/** Sticky top header: logo mark, wordmark, race-week indicator. */
+/** Sticky top header: logo mark, wordmark, next-race indicator
+ * (green while team changes are open, red during lockdown). */
 export default function Header() {
+  const { races, nextRaceId } = useRaces();
+  const next = races.find((r) => r.id === nextRaceId);
+  const locked = next?.status === "lockdown";
+  const dot = locked ? C.danger : C.apex;
   return (
     <div
       className="sticky top-0 z-40 px-4 py-3 flex items-center justify-between"
@@ -31,10 +38,14 @@ export default function Header() {
           SLIPSTREAM
         </span>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full" style={{ background: C.apex, boxShadow: `0 0 8px ${C.apex}` }} />
-        <span style={{ fontSize: 12, color: C.muted, fontFamily: FONT.body }}>RACE WEEK</span>
-      </div>
+      {next && (
+        <Link to={`/race/${next.id}`} className="flex items-center gap-2" style={{ textDecoration: "none" }}>
+          <div className="w-2 h-2 rounded-full" style={{ background: dot, boxShadow: `0 0 8px ${dot}` }} />
+          <span style={{ fontSize: 12, color: C.muted, fontFamily: FONT.mono, letterSpacing: "0.06em" }}>
+            R{next.round} · {locked ? "LOCKED" : (next.circuit || "").toUpperCase()}
+          </span>
+        </Link>
+      )}
     </div>
   );
 }

@@ -181,3 +181,27 @@ def test_admin_results_errors(client, db, weekend):
     finally:
         app.dependency_overrides.pop(get_openf1, None)
     assert client.get("/api/scores/9999/drivers").status_code == 404
+
+
+def test_process_due_races_runs_pipeline_in_order_and_stops(db, weekend):
+    from datetime import datetime, timedelta
+
+    from services.salary import is_adjusted
+    from services.weekend import process_due_races
+
+    weekend.race_start_at = datetime(2026, 10, 25, 20, 0)
+    nxt = make_race(db, 2, quali_session_key=101, race_session_key=103,
+                    race_start_at=datetime(2026, 11, 1, 20, 0))
+    # 3h after the start: not due
+    log = process_due_races(db, FakeResultsClient(), 2026, datetime(2026, 10, 25, 23, 0))
+    assert log == ["R1 Round 1 GP: not due yet"]
+    assert db.query(DriverResult).count() == 0
+    # 5h after: R1 processed + finalized, R2 not due
+    log = process_due_races(db, FakeResultsClient(), 2026, datetime(2026, 10, 26, 1, 0))
+    assert log[0].startswith("R1 Round 1 GP: 4 drivers scored")
+    assert log[1] == "R2 Round 2 GP: not due yet"
+    assert is_adjusted(db, weekend)
+    # Running again doesn't redo R1; R2 due but OpenF1 has nothing yet
+    log = process_due_races(db, FakeResultsClient(race_rows=[]), 2026, datetime(2026, 11, 2))
+    assert log == ["R2 Round 2 GP: no results from OpenF1 yet"]
+    assert not is_adjusted(db, nxt)
