@@ -14,7 +14,8 @@ const SLOTS = { driver: 5, constructor: 1 };
 
 export default function TeamPage() {
   const { user, logout } = useAuth();
-  const { team, loading, error, sign, release } = useTeam();
+  const { team, loading, error, sign, release, setStar } = useTeam();
+  const [starError, setStarError] = useState(null);
   const [signing, setSigning] = useState(null); // "driver" | "constructor"
   const [releasing, setReleasing] = useState(null); // contract
 
@@ -68,9 +69,30 @@ export default function TeamPage() {
                 <Label>
                   {type === "driver" ? "Drivers" : "Constructor"} {signed.length}/{SLOTS[type]}
                 </Label>
-                {signed.map((c) => (
-                  <ContractCard key={c.id} contract={c} locked={locked} onRelease={setReleasing} />
-                ))}
+                {type === "driver" && (
+                  <div className="mb-2" style={{ fontSize: 12, color: starError ? C.danger : C.muted, fontFamily: FONT.body }}>
+                    {starError ??
+                      `Star driver: pick one driver under ${formatGBP(team.star_max_salary)} to score double this race.`}
+                  </div>
+                )}
+                {signed.map((c) => {
+                  const eligible = type === "driver" && c.current_salary < team.star_max_salary;
+                  const active = team.star_driver_id === c.element_id;
+                  const toggle = () =>
+                    setStar(active ? null : c.element_id).then(
+                      () => setStarError(null),
+                      (err) => setStarError(err.message)
+                    );
+                  return (
+                    <ContractCard
+                      key={c.id}
+                      contract={c}
+                      locked={locked}
+                      onRelease={setReleasing}
+                      star={eligible ? { active, onToggle: toggle } : null}
+                    />
+                  );
+                })}
                 {Array.from({ length: empty }, (_, i) => (
                   <EmptySlot
                     key={i}

@@ -208,10 +208,14 @@ Response `200`:
   "team_value": 100000000,
   "current_race": { "id": 18, "round": 18, "name": "United States Grand Prix",
                     "lockdown_at": "2026-10-24T21:00:00Z", "locked": false, "races_left": 6 },
-  "cooldown": [ { "element_type": "driver", "element_id": 7 } ]
+  "cooldown": [ { "element_type": "driver", "element_id": 7 } ],
+  "star_driver_id": 15,
+  "star_max_salary": 18000000
 }
 ```
-`current_race` is `null` once the season is over.
+`current_race` is `null` once the season is over. `star_driver_id` is the
+current race's star pick (or `null`); only drivers earning less than
+`star_max_salary` can be the star.
 
 ### POST /contracts
 Sign a driver or constructor for the current race onward.
@@ -228,6 +232,21 @@ Errors:
 - `402` not enough cash.
 - `404` unknown driver/constructor.
 - `409` already on your team, or in cooldown.
+
+### PUT /contracts/star
+Make one of your drivers the star for the current race: their points count
+double that weekend. Must be on your team for the current race and earn less
+than £18M (`star_max_salary`). Replaces any earlier pick; pick again each race.
+Releasing the star driver clears the pick.
+
+Request: `{ "driver_id": 15 }` → Response `200`: `{ "star_driver_id": 15 }`
+
+Errors: `400` not on your team, salary £18M or more, lockdown active, season
+over; `403` not a league member; `404` unknown driver.
+
+### DELETE /contracts/star
+Clear the current race's star pick. Response `200`: `{ "star_driver_id": null }`.
+Errors: `400` lockdown active.
 
 ### DELETE /contracts/{id}
 Release a contract on your team. Before its first race locks: full refund, no
@@ -365,10 +384,10 @@ Response `200`:
       "elements": [
         { "element_type": "driver", "element_id": 9, "name": "Charles Leclerc", "code": "LEC",
           "color": "#E80020", "constructor_name": "Ferrari", "points": 166,
-          "quali_pos": 1, "race_pos": 1 },
+          "quali_pos": 1, "race_pos": 1, "is_star": false },
         { "element_type": "constructor", "element_id": 8, "name": "Ferrari", "code": null,
           "color": "#E80020", "constructor_name": null, "points": 137,
-          "quali_pos": null, "race_pos": null }
+          "quali_pos": null, "race_pos": null, "is_star": false }
       ]
     }
   ],
@@ -386,6 +405,7 @@ Response `200`:
   race result is in and scored. Live points rank the lineups but don't crown
   a winner.
 - `winners`: the top-ranked lineup(s) with a team, once `final`; else `[]`.
+- `is_star`: the owner's star driver; its `points` are already doubled.
 - `qualifying` is `[]` until qualifying results are ingested.
 
 Errors: `404` unknown race.

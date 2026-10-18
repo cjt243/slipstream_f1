@@ -2,8 +2,9 @@ import { C, FONT } from "../../lib/tokens";
 import { Mono } from "../ui";
 import { formatDelta, formatGBP } from "../../lib/format";
 
-/** A signed driver/constructor: contract span, value movement, release action. */
-export default function ContractCard({ contract, locked, onRelease }) {
+/** A signed driver/constructor: contract span, value movement, release action,
+ * and (drivers under the star cap) the star-driver toggle. */
+export default function ContractCard({ contract, locked, onRelease, star = null }) {
   const color = contract.element_color || C.muted;
   const gain = contract.current_salary - contract.signed_salary;
   const span =
@@ -18,6 +19,7 @@ export default function ContractCard({ contract, locked, onRelease }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-bold truncate" style={{ fontSize: 15, fontFamily: FONT.display, color: C.white, letterSpacing: "0.04em" }}>
+            {star?.active && <span style={{ color: C.gold }}>★ </span>}
             {contract.element_name}
           </div>
           <div style={{ fontSize: 12, color: C.muted, fontFamily: FONT.body }}>
@@ -32,7 +34,29 @@ export default function ContractCard({ contract, locked, onRelease }) {
           )}
         </div>
       </div>
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex justify-between items-center">
+        {star ? (
+          <button
+            onClick={star.onToggle}
+            disabled={locked}
+            aria-pressed={star.active}
+            style={{
+              fontSize: 11,
+              fontFamily: FONT.mono,
+              letterSpacing: "0.1em",
+              color: locked ? C.ghost : C.gold,
+              background: star.active ? `${C.gold}20` : "none",
+              border: `1px solid ${star.active ? C.gold + "60" : "transparent"}`,
+              borderRadius: 4,
+              padding: "2px 6px",
+              cursor: locked ? "not-allowed" : "pointer",
+            }}
+          >
+            {star.active ? "★ STAR · 2× POINTS" : "☆ MAKE STAR"}
+          </button>
+        ) : (
+          <span />
+        )}
         <button
           onClick={() => onRelease(contract)}
           disabled={locked}

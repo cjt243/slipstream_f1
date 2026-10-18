@@ -55,6 +55,8 @@ class ContractListResponse(BaseModel):
     team_value: int
     current_race: CurrentRace | None
     cooldown: list[CooldownElement]
+    star_driver_id: int | None  # the current race's star pick
+    star_max_salary: int  # star drivers must earn less than this
 
 
 class ReleaseResponse(BaseModel):
@@ -62,3 +64,11 @@ class ReleaseResponse(BaseModel):
     penalty: int
     refund: int
     bank_balance: int
+
+
+class StarRequest(BaseModel):
+    driver_id: int
+
+
+class StarResponse(BaseModel):
+    star_driver_id: int | None

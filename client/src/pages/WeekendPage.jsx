@@ -149,7 +149,11 @@ function LineupCard({ lineup }) {
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-1 h-6 rounded" style={{ background: e.color || C.muted }} />
                 <div className="min-w-0">
-                  <div className="truncate" style={{ fontSize: 14, fontFamily: FONT.display, color: C.white }}>{e.name}</div>
+                  <div className="truncate" style={{ fontSize: 14, fontFamily: FONT.display, color: C.white }}>
+                    {e.is_star && <span style={{ color: C.gold }}>★ </span>}
+                    {e.name}
+                    {e.is_star && <span style={{ fontSize: 11, color: C.gold, fontFamily: FONT.mono }}> 2×</span>}
+                  </div>
                   <div style={{ fontSize: 11, fontFamily: FONT.mono, color: C.ghost }}>
                     {e.element_type === "constructor"
                       ? "CONSTRUCTOR"

@@ -2,7 +2,7 @@
 
 A user's points for a race are the summed fantasy points of every driver and
 constructor on their team for that round: contracts covering the round that
-hadn't been released before it. Rows are only written for members with a
+hadn't been released before it. Their star driver's points count twice. Rows are only written for members with a
 team that race, so pre-league races don't clutter the standings.
 """
 
@@ -19,6 +19,7 @@ from models import (
     FantasyScore,
     LeagueMember,
     Race,
+    StarDriver,
     User,
 )
 from models.league import STARTING_BUDGET
@@ -39,10 +40,13 @@ def score_fantasy(db: Session, race: Race) -> int:
     driver_pts = {s.driver_id: s.total_pts for s in db.query(DriverScore).filter_by(race_id=race.id)}
     team_pts = {s.constructor_id: s.total_pts
                 for s in db.query(ConstructorScore).filter_by(race_id=race.id)}
+    stars = {(s.user_id, s.league_id): s.driver_id for s in db.query(StarDriver).filter_by(race_id=race.id)}
     totals: dict[tuple[int, int], int] = {}
     for c in contracts_for_round(db, race.round):
         pts = (driver_pts if c.element_type == ElementType.DRIVER else team_pts).get(c.element_id, 0)
         key = (c.user_id, c.league_id)
+        if c.element_type == ElementType.DRIVER and stars.get(key) == c.element_id:
+            pts *= 2
         totals[key] = totals.get(key, 0) + pts
 
     existing = {(f.user_id, f.league_id): f for f in db.query(FantasyScore).filter_by(race_id=race.id)}

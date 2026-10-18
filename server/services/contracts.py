@@ -11,6 +11,10 @@ completed) and are only allowed before its lockdown. A contract covers rounds
 whose first race hasn't locked yet is a free cancellation (full refund, no
 cooldown) — it was never really signed. After any departure the element can't
 be re-signed for the next race (one-race interval).
+
+Star driver: before lockdown a user may pick one of their drivers earning
+under STAR_MAX_SALARY as the current race's star; its points count double
+(services/fantasy.py). Picked afresh each race.
 """
 
 from dataclasses import dataclass
@@ -26,6 +30,7 @@ from models import (
     League,
     LeagueMember,
     Race,
+    StarDriver,
     User,
 )
 from services import races as race_service
@@ -35,6 +40,7 @@ MIN_LENGTH = 1
 MAX_LENGTH = 5
 MAX_ON_ROSTER = {ElementType.DRIVER: 5, ElementType.CONSTRUCTOR: 1}
 RELEASE_PENALTY_RATE = 0.03
+STAR_MAX_SALARY = 18_000_000  # a star driver must earn less than this
 
 
 class ContractConflict(ValueError):
@@ -161,6 +167,11 @@ def release_contract(db: Session, user: User, contract_id: int, *, season: int,
     element = get_element(db, contract.element_type, contract.element_id)
     current_salary = element.salary if element else contract.signed_salary
 
+    if contract.element_type == ElementType.DRIVER:
+        star = get_star(db, member, race)
+        if star is not None and star.driver_id == contract.element_id:
+            db.delete(star)
+
     if contract.race_start >= race.round:
         # Hasn't raced yet: free cancellation.
         member.bank_balance += contract.signed_salary
@@ -175,6 +186,52 @@ def release_contract(db: Session, user: User, contract_id: int, *, season: int,
     contract.released_at_race = race.round - 1  # last round served
     db.flush()
     return Release(penalty=penalty, refund=refund, bank_balance=member.bank_balance)
+
+
+def get_star(db: Session, member: LeagueMember, race: Race) -> StarDriver | None:
+    return (
+        db.query(StarDriver)
+        .filter_by(user_id=member.user_id, league_id=member.league_id, race_id=race.id)
+        .one_or_none()
+    )
+
+
+def set_star_driver(db: Session, user: User, driver_id: int, *, season: int,
+                    now: datetime) -> StarDriver:
+    """Make one of the user's drivers their star for the current race,
+    replacing any earlier pick."""
+    member = get_membership(db, user)
+    if member is None:
+        raise PermissionError("You're not a member of the league")
+    driver = db.get(Driver, driver_id)
+    if driver is None or driver.season != season:
+        raise LookupError("No such driver this season")
+    race = _require_open_race(db, season, now)
+    if not any(c.element_type == ElementType.DRIVER and c.element_id == driver_id
+               for c in roster_contracts(db, member, race.round)):
+        raise ValueError(f"{driver.name} isn't on your team")
+    if driver.salary >= STAR_MAX_SALARY:
+        raise ValueError(f"Star drivers must earn under £{STAR_MAX_SALARY // 1_000_000}M")
+
+    star = get_star(db, member, race) or StarDriver(
+        user_id=user.id, league_id=member.league_id, race_id=race.id, driver_id=driver_id
+    )
+    star.driver_id = driver_id
+    db.add(star)
+    db.flush()
+    return star
+
+
+def clear_star_driver(db: Session, user: User, *, season: int, now: datetime) -> None:
+    """Remove the user's star pick for the current race (no-op if none)."""
+    member = get_membership(db, user)
+    if member is None:
+        raise PermissionError("You're not a member of the league")
+    race = _require_open_race(db, season, now)
+    star = get_star(db, member, race)
+    if star is not None:
+        db.delete(star)
+        db.flush()
 
 
 def settle_expired_contracts(db: Session, race: Race) -> int:
