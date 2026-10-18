@@ -169,9 +169,20 @@ Errors: `404` unknown race.
 
 ## Contracts  (all protected)
 
+Money model (settle on release): signing moves the element's current salary
+from cash into the contract. When the contract ends — early release or expiry
+after its last race — the element's *current, post-race* salary comes back as
+cash (less a 3% penalty on early release). Salary moves in between change team
+value, not cash. `team_value = bank_balance + contract_value`.
+
+Timing: changes apply to the **current race** (first race not yet completed)
+and are only allowed before its lockdown. A contract covers rounds
+`race_start … last_round`. Releasing before the contract's first race locks is
+a free cancellation (`cancellable: true`). After any departure the element is
+in **cooldown** for the next race (one-race interval).
+
 ### GET /contracts
-Active contracts for the current user. `element_type` is `driver` |
-`constructor`.
+The user's team for the current race.
 
 Response `200`:
 ```json
@@ -182,41 +193,53 @@ Response `200`:
       "element_type": "driver",
       "element_id": 1,
       "element_name": "Max Verstappen",
-      "signed_salary": 30000000,
-      "current_salary": 31000000,
-      "race_start": 1,
+      "element_color": "#4781D7",
+      "constructor_name": "Red Bull Racing",
+      "signed_salary": 32000000,
+      "current_salary": 32000000,
+      "race_start": 18,
       "contract_length": 3,
-      "races_remaining": 2
+      "last_round": 20,
+      "races_remaining": 3,
+      "cancellable": true
     }
   ],
-  "bank_balance": 70000000,
-  "team_value": 31000000
+  "bank_balance": 68000000,
+  "contract_value": 32000000,
+  "team_value": 100000000,
+  "current_race": { "id": 18, "round": 18, "name": "United States Grand Prix",
+                    "lockdown_at": "2026-10-24T21:00:00Z", "locked": false, "races_left": 6 },
+  "cooldown": [ { "element_type": "driver", "element_id": 7 } ]
 }
 ```
+`current_race` is `null` once the season is over.
 
 ### POST /contracts
-Sign a driver or constructor.
+Sign a driver or constructor for the current race onward.
 
 Request:
 ```json
 { "element_type": "driver", "element_id": 1, "contract_length": 3 }
 ```
-Response `201`: the created contract object (same shape as a `contracts[]` item).
+Response `201`: the created contract (same shape as a `contracts[]` item).
 
 Errors:
-- `400` invalid length (must be 1–5), roster full (max 5 drivers / 1 constructor), past lockdown.
-- `409` already under contract, or in post-release cooldown.
-- `402` insufficient bank balance.
+- `400` length not 1–5 or longer than the races left, roster full (5 drivers /
+  1 constructor), driver not on the current grid, lockdown active, season over.
+- `402` not enough cash.
+- `404` unknown driver/constructor.
+- `409` already on your team, or in cooldown.
 
 ### DELETE /contracts/{id}
-Early release. Applies a 3% penalty on the current salary; refunds the
-remainder to the bank and starts a cooldown.
+Release a contract on your team. Before its first race locks: full refund, no
+penalty, no cooldown. Afterwards: 3% penalty on the current salary, the rest
+returned to cash, cooldown for the next race.
 
 Response `200`:
 ```json
-{ "released": true, "penalty": 930000, "refund": 30070000, "bank_balance": 100070000 }
+{ "released": true, "penalty": 960000, "refund": 31040000, "bank_balance": 99040000 }
 ```
-Errors: `404` not the user's contract / unknown.
+Errors: `400` lockdown active; `404` not your contract / not on your team.
 
 ---
 
@@ -356,5 +379,8 @@ Response `200`:
 ```json
 { "race_id": 1, "adjustments": 33 }
 ```
+Contracts whose last round was this race are then settled: the element's
+post-race salary is paid back to the owner's cash.
+
 Errors: `404` unknown race; `409` not scored yet, already adjusted, or an
 earlier round still needs adjusting.

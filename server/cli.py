@@ -20,6 +20,7 @@ from models import User
 from services import races as race_service
 from services.openf1 import OpenF1Client
 from services.results import process_race_results
+from services.contracts import settle_expired_contracts
 from services.salary import adjust_salaries, is_adjusted
 from services.seed import seed_all
 
@@ -75,6 +76,7 @@ def ingest_season(season: int = typer.Option(settings.season, help="Season.")) -
                 adjusted = 0
                 if not is_adjusted(db, race):
                     adjusted = adjust_salaries(db, race)
+                    settle_expired_contracts(db, race)
                     db.commit()
                 typer.echo(f"R{race.round} {race.name}: {processed.drivers_scored} drivers scored, "
                            f"{adjusted} salaries adjusted")
@@ -98,6 +100,7 @@ def adjust(
         except ValueError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(1) from exc
+        settle_expired_contracts(db, race)
         db.commit()
         _echo({"round": round, "adjustments": count})
 
