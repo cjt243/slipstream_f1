@@ -6,13 +6,14 @@ import { formatDayTime } from "../lib/format";
 import { useRace } from "../hooks/useRaces";
 import LockdownTimer from "../components/race/LockdownTimer";
 import RaceStatusPill from "../components/race/RaceStatusPill";
+import RaceResults from "../components/scores/RaceResults";
 
 const TABS = ["schedule", "results"];
 
 export default function RaceDetailPage() {
   const { id } = useParams();
   const { race, loading, error } = useRace(id);
-  const [tab, setTab] = useState("schedule");
+  const [tab, setTab] = useState(null);
 
   if (loading) return <div style={{ fontSize: 13, color: C.ghost, fontFamily: FONT.body }}>Loading…</div>;
   if (error)
@@ -22,6 +23,9 @@ export default function RaceDetailPage() {
         <div style={{ fontSize: 13, color: C.danger, fontFamily: FONT.body }}>{error}</div>
       </>
     );
+
+  // Completed races open on their results.
+  const activeTab = tab ?? (race.results_available ? "results" : "schedule");
 
   return (
     <>
@@ -44,9 +48,9 @@ export default function RaceDetailPage() {
         {race.status === "upcoming" && <LockdownTimer lockdownAt={race.lockdown_at} />}
       </Card>
 
-      <ToggleGroup options={TABS} value={tab} onChange={setTab} />
+      <ToggleGroup options={TABS} value={activeTab} onChange={setTab} />
 
-      {tab === "schedule" ? (
+      {activeTab === "schedule" ? (
         <Card>
           <StatRow label="Lockdown" value={formatDayTime(race.lockdown_at)} color={C.gold} />
           <StatRow label="Race start" value={formatDayTime(race.race_start_at)} />
@@ -54,11 +58,7 @@ export default function RaceDetailPage() {
           <StatRow label="Laps" value={race.total_laps ?? "TBC"} divider={false} />
         </Card>
       ) : (
-        <Card>
-          <div style={{ fontSize: 13, color: C.muted, fontFamily: FONT.body }}>
-            {race.results_available ? "Scoring breakdown coming soon." : "Results appear here after the race."}
-          </div>
-        </Card>
+        <RaceResults race={race} />
       )}
     </>
   );

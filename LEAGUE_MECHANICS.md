@@ -475,6 +475,10 @@ Constructors are scored separately from drivers. A constructor slot on your team
 
 Awarded based on the constructor's combined qualifying result (best of their two drivers, or aggregate — exact aggregation method not specified in screenshots, but position shown is a single ranked position 1st–18th+).
 
+**Slipstream implementation:** teams are ranked by the *average* position of their drivers in the session; ties go to the team whose best driver finished higher. The same ranking is used for race points (§11.2).
+
+**Unclassified drivers:** ingestion places drivers without a classified position after the classified ones, most laps first, then DSQ/DNS (most laps first). They score position points for that place.
+
 | Position | Points |
 |----------|--------|
 | 1st | 30 |

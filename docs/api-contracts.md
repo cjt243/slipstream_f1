@@ -220,7 +220,10 @@ Errors: `404` not the user's contract / unknown.
 ## Scores
 
 ### GET /scores/{race_id}/drivers
-Per-driver scoring breakdown for a race (see LEAGUE_MECHANICS.md §3–8).
+Per-driver scoring breakdown for a race (see LEAGUE_MECHANICS.md §3–8), highest
+total first. Public. Positions are the order ingestion assigned (unclassified
+drivers follow the classified ones); `constructor_*` is the team the driver
+raced for at this event.
 
 Response `200`:
 ```json
@@ -230,6 +233,13 @@ Response `200`:
     {
       "driver_id": 1,
       "driver_name": "Max Verstappen",
+      "code": "VER",
+      "constructor_name": "Red Bull Racing",
+      "constructor_color": "#4781D7",
+      "quali_pos": 1,
+      "sprint_pos": null,
+      "race_pos": 1,
+      "dnf": false,
       "quali_pts": 50,
       "race_pts": 100,
       "sprint_pts": 0,
@@ -245,15 +255,20 @@ Response `200`:
 Errors: `404` race unknown, `409` results not yet available.
 
 ### GET /scores/{race_id}/constructors
+Teams are ranked by the average position of their drivers in each session
+(ties → better best driver); `quali_rank`/`race_rank` are those ranks.
+
 Response `200`:
 ```json
 {
   "race_id": 1,
   "scores": [
-    { "constructor_id": 3, "constructor_name": "Red Bull Racing", "quali_pts": 40, "race_pts": 80, "total_pts": 120 }
+    { "constructor_id": 3, "constructor_name": "Red Bull Racing", "constructor_color": "#4781D7",
+      "quali_rank": 1, "race_rank": 2, "quali_pts": 30, "race_pts": 58, "total_pts": 88 }
   ]
 }
 ```
+Errors (both): `404` race unknown, `409` results not yet available.
 
 ---
 
@@ -311,7 +326,9 @@ Response `200`:
 ```
 
 ### POST /admin/results
-Ingest results for a race from OpenF1, then run scoring.
+Ingest results for a race from OpenF1, then run scoring. Safe to re-run (e.g.
+after a post-race penalty). Ingest races in round order — improvement points
+use the earlier rounds' finishes.
 
 Request:
 ```json
@@ -319,8 +336,9 @@ Request:
 ```
 Response `200`:
 ```json
-{ "race_id": 1, "drivers_scored": 20, "constructors_scored": 10, "users_scored": 8 }
+{ "race_id": 1, "drivers_scored": 22, "constructors_scored": 11 }
 ```
+Errors: `404` unknown race, `409` OpenF1 has no results for it yet.
 
 ### POST /admin/salary-adjust
 Recompute salaries after a race (LEAGUE_MECHANICS.md §12).

@@ -15,6 +15,10 @@ class DriverResult(Base):
     driver_id: Mapped[int] = mapped_column(
         ForeignKey("drivers.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    # Team the driver raced for at this event (drivers can change seats
+    # mid-season). Plain column, no FK: adding one forces SQLite to rebuild
+    # the table.
+    constructor_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     quali_pos: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sprint_pos: Mapped[int | None] = mapped_column(Integer, nullable=True)
     race_pos: Mapped[int | None] = mapped_column(Integer, nullable=True)
