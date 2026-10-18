@@ -107,6 +107,7 @@ def seed_races(db: Session, races_data: list[dict], season: int) -> list[Race]:
         race.circuit = rd.get("circuit")
         race.has_sprint = bool(rd.get("has_sprint"))
         race.lockdown_at = _parse_dt(rd.get("lockdown_at"))
+        race.race_start_at = _parse_dt(rd.get("race_start_at"))
         race.meeting_key = rd.get("meeting_key")
         race.quali_session_key = rd.get("quali_session_key")
         race.sprint_session_key = rd.get("sprint_session_key")

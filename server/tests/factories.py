@@ -27,9 +27,9 @@ def make_driver(db: Session, constructor: Constructor, number: int, name: str | 
 
 
 def make_race(db: Session, rnd: int, *, season: int = 2026, lockdown_at: datetime | None = None,
-              has_sprint: bool = False, name: str | None = None, **keys: int) -> Race:
+              has_sprint: bool = False, name: str | None = None, **fields: object) -> Race:
     r = Race(season=season, round=rnd, name=name or f"Round {rnd} GP", circuit=f"Circuit {rnd}",
-             has_sprint=has_sprint, lockdown_at=lockdown_at, **keys)
+             has_sprint=has_sprint, lockdown_at=lockdown_at, **fields)
     db.add(r)
     db.flush()
     return r

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from config import settings
 from models.user import User
 from services.auth import decode_jwt_user_id
+from services.openf1 import OpenF1Client
 
 
 def _build_db_url() -> str:
@@ -57,6 +58,18 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def get_openf1() -> Generator[OpenF1Client, None, None]:
+    """A request-scoped OpenF1 client (overridden with a fake in tests)."""
+    client = OpenF1Client()
+    try:
+        yield client
+    finally:
+        client.close()
+
+
+OpenF1 = Annotated[OpenF1Client, Depends(get_openf1)]
 
 
 # --- Auth dependencies -----------------------------------------------------
@@ -104,3 +117,6 @@ def get_admin_user(user: CurrentUser) -> User:
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
     return user
+
+
+AdminUser = Annotated[User, Depends(get_admin_user)]

@@ -141,6 +141,13 @@ def _hex(color: str | None) -> str | None:
     return color if color.startswith("#") else f"#{color}"
 
 
+def _session_start(sessions: list[dict], name: str) -> str | None:
+    for s in sessions:
+        if s.get("session_name") == name and not s.get("is_cancelled"):
+            return s.get("date_start")
+    return None
+
+
 def _session_key(sessions: list[dict], name: str) -> int | None:
     for s in sessions:
         if s.get("session_name") == name and not s.get("is_cancelled"):
@@ -168,6 +175,7 @@ def _build_race(meeting: dict, sessions: list[dict], round_number: int) -> dict:
         "circuit": meeting.get("circuit_short_name"),
         "has_sprint": has_sprint,
         "lockdown_at": lockdown_at,
+        "race_start_at": _session_start(sessions, "Race"),
         "meeting_key": meeting.get("meeting_key"),
         "quali_session_key": _session_key(sessions, "Qualifying"),
         "sprint_session_key": _session_key(sessions, "Sprint"),
