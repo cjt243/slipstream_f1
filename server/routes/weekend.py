@@ -38,6 +38,7 @@ def weekend(race_id: int, db: DbSession, viewer: OptionalUser) -> WeekendRespons
         race=race_detail(db, race),
         locked=w.locked,
         scored=w.scored,
+        final=w.final,
         winners=[_lineup(lu, viewer) for lu in w.winners],
         lineups=[_lineup(lu, viewer) for lu in w.lineups],
         hidden_lineups=w.hidden,

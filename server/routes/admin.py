@@ -16,7 +16,7 @@ from schemas.admin import (
 )
 from services import races as race_service
 from services.notifications import reminder_due, send_lineup_reminders
-from services.results import process_race_results
+from services.results import process_early_sessions, process_race_results
 from services.weekend import finalize_race
 from services.seed import seed_all
 
@@ -42,9 +42,13 @@ def _race_or_404(db: DbSession, race_id: int) -> Race:
 def ingest_results(
     body: RaceRequest, _: AdminUser, db: DbSession, openf1: OpenF1
 ) -> ResultsResponse:
-    """Ingest a race's results from OpenF1 and score it. Safe to re-run."""
+    """Ingest a race's results from OpenF1 and score it. Safe to re-run.
+    Before the race result is out, scores qualifying/sprint live instead."""
     race = _race_or_404(db, body.race_id)
     processed = process_race_results(db, openf1, race)
+    live = processed is None
+    if live:
+        processed = process_early_sessions(db, openf1, race)
     if processed is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="OpenF1 has no results for this race yet"
@@ -53,6 +57,7 @@ def ingest_results(
         race_id=processed.race_id,
         drivers_scored=processed.drivers_scored,
         constructors_scored=processed.constructors_scored,
+        live=live,
     )
 
 

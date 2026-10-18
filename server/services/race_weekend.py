@@ -3,7 +3,8 @@ weekend winner, and the qualifying order with how many teams picked each
 driver.
 
 Lineups are secret until lockdown: before it, a viewer sees only their own
-team and no pick counts.
+team and no pick counts. Points are live once qualifying is scored; the winner
+is crowned only when the race result is in (``final``).
 """
 
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ from models import (
     User,
 )
 from services.fantasy import contracts_for_round
+from services.races import races_with_results
 
 
 @dataclass(frozen=True)
@@ -61,7 +63,8 @@ class QualiEntry:
 class Weekend:
     race: Race
     locked: bool
-    scored: bool
+    scored: bool  # some points are in (live after qualifying/sprint)
+    final: bool  # the race result is in and scored
     lineups: list[Lineup]  # visible lineups: everyone after lockdown, else the viewer's
     hidden: int  # other members' lineups not shown yet (before lockdown)
     winners: list[Lineup]  # top scorer(s) once scored
@@ -86,6 +89,7 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
     team_pts = {s.constructor_id: s.total_pts
                 for s in db.query(ConstructorScore).filter_by(race_id=race.id)}
     scored = bool(driver_scores)
+    final = scored and race.id in races_with_results(db, [race.id])
     results = {r.driver_id: r for r in db.query(DriverResult).filter_by(race_id=race.id)}
     fantasy = {f.user_id: f.total_points
                for f in db.query(FantasyScore).filter_by(race_id=race.id, league_id=league_id)}
@@ -133,7 +137,7 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
         lineups = _ranked(lineups)
     else:
         lineups.sort(key=lambda lu: lu.user.username.lower())
-    winners = [lu for lu in lineups if lu.rank == 1 and lu.elements] if scored and locked else []
+    winners = [lu for lu in lineups if lu.rank == 1 and lu.elements] if final and locked else []
 
     picks: dict[int, int] = {}
     for contracts in by_user.values():
@@ -153,4 +157,4 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
     ]
     qualifying.sort(key=lambda q: q.quali_pos)
 
-    return Weekend(race, locked, scored, lineups, len(members) - len(visible), winners, qualifying)
+    return Weekend(race, locked, scored, final, lineups, len(members) - len(visible), winners, qualifying)

@@ -5,7 +5,8 @@
 2. ``finalize_race``: adjust salaries, settle contracts that ended at this
    race at their post-race salary, apply the £100M team-value floor.
 
-``process_due_races`` runs both for every race whose results should be out.
+``process_due_races`` runs both for every race whose results should be out,
+and scores the current weekend's qualifying/sprint live once it has locked.
 """
 
 from datetime import datetime, timedelta
@@ -17,7 +18,7 @@ from services import races as race_service
 from services.contracts import settle_expired_contracts
 from services.fantasy import apply_team_value_floor
 from services.openf1 import OpenF1Client
-from services.results import process_race_results
+from services.results import process_early_sessions, process_race_results
 from services.salary import adjust_salaries, is_adjusted
 
 # Results are fetched once the race should be over and classified (a GP is
@@ -40,20 +41,26 @@ def finalize_race(db: Session, race: Race) -> int:
 def process_due_races(db: Session, client: OpenF1Client, season: int, now: datetime) -> list[str]:
     """Process and finalize, in round order, every race that started at least
     RESULTS_DELAY ago and isn't finalized yet. Stops at the first race that
-    isn't due or whose results aren't out. Returns a log line per step."""
+    isn't due or whose results aren't out — scoring its qualifying/sprint
+    live if that weekend has locked. Returns a log line per step."""
     log: list[str] = []
     for race in race_service.list_races(db, season):
         if is_adjusted(db, race):
             continue
-        if race.race_start_at is None or race.race_start_at + RESULTS_DELAY > now:
-            log.append(f"R{race.round} {race.name}: not due yet")
-            break
-        processed = process_race_results(db, client, race)
-        if processed is None:
-            log.append(f"R{race.round} {race.name}: no results from OpenF1 yet")
-            break
-        count = finalize_race(db, race)
-        db.commit()
-        log.append(f"R{race.round} {race.name}: {processed.drivers_scored} drivers scored, "
-                   f"{count} salaries adjusted")
+        due = race.race_start_at is not None and race.race_start_at + RESULTS_DELAY <= now
+        processed = process_race_results(db, client, race) if due else None
+        if processed is not None:
+            count = finalize_race(db, race)
+            db.commit()
+            log.append(f"R{race.round} {race.name}: {processed.drivers_scored} drivers scored, "
+                       f"{count} salaries adjusted")
+            continue
+        if race.lockdown_at is not None and race.lockdown_at <= now:
+            live = process_early_sessions(db, client, race)
+            if live is not None:
+                log.append(f"R{race.round} {race.name}: live — {live.drivers_scored} drivers scored "
+                           "from qualifying/sprint")
+        log.append(f"R{race.round} {race.name}: "
+                   f"{'no results from OpenF1 yet' if due else 'not due yet'}")
+        break
     return log

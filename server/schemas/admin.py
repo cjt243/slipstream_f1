@@ -23,6 +23,7 @@ class ResultsResponse(BaseModel):
     race_id: int
     drivers_scored: int
     constructors_scored: int
+    live: bool  # only qualifying/sprint were scored; the race result isn't out
 
 
 class SalaryAdjustResponse(BaseModel):

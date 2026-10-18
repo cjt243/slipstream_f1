@@ -109,7 +109,9 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 - **Starting salaries** (manual per §12.5): the previous season's final championship order read against the
   default tables (`server/data/salaries.py`, keyed by driver code / team name — numbers change between seasons).
 - **Results timing:** a race is processed 4h after its start; later penalties can be re-scored via
-  `POST /api/admin/results`, but salaries are not re-adjusted.
+  `POST /api/admin/results`, but salaries are not re-adjusted. Once a weekend locks, qualifying/sprint are
+  scored live (driver_results rows with `race_pos` null). A race is **completed** only when its race result is
+  stored (`race_pos` set) — that, not "any results", drives race status, the current race and salary adjustment.
 - **Team-value floor** top-ups go into cash.
 
 
@@ -127,7 +129,8 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 - [x] Scheduled race-weekend processing (autopilot) — added beyond the original plan
 
 ### Phase 2 — Enhancements
-- [ ] Live score updates during race weekends (immediately post-session)
+- [x] Live score updates during race weekends (immediately post-session)
+  (qualifying/sprint scored as soon as OpenF1 has them; autopilot runs hourly Fri–Sun)
 - [x] A deeper focus on each weekend - a dedicated "Race" view that focuses on qualifying stats, team lineups, and a Race weekend "winner" - similar to how fantasy football is very week to week focused
   (Weekend tab, `GET /weekend/{race_id}`; other teams' lineups are revealed at lockdown)
 - [ ] Notifications related to deadlines for lineup locking, star drivers
@@ -211,7 +214,7 @@ Exact shapes and error codes: [docs/api-contracts.md](docs/api-contracts.md) —
 | GET | `/leaderboard/<race_id>` | Single race standings |
 | GET | `/weekend/<race_id>` | Weekend view: lineups + points, winner, qualifying with pick counts |
 | POST | `/admin/seed` | Seed/refresh the season from OpenF1 (admin only) |
-| POST | `/admin/results` | Ingest + score a race and its fantasy teams from OpenF1 (admin only) |
+| POST | `/admin/results` | Ingest + score a race and its fantasy teams from OpenF1; before the race, live quali/sprint (admin only) |
 | POST | `/admin/salary-adjust` | Finalize a scored race: salaries, contract settlement, floor (admin only) |
 | POST | `/admin/reminders` | Email lineup reminders now if the next lockdown is within 24h (admin only) |
 
@@ -292,10 +295,11 @@ Three environments — each uses a different database and cannot touch the other
 - CI must pass before merging — never merge a branch with failing tests
 
 ### Race autopilot (GitHub Actions)
-- `.github/workflows/autopilot.yml` runs `cli.py autopilot` every two hours (and on manual dispatch) against
+- `.github/workflows/autopilot.yml` runs `cli.py autopilot` hourly Fri–Sun, every two hours otherwise (and on manual dispatch), against
   production Turso: it refreshes the calendar and grid from OpenF1, then for every race that started 4+ hours ago
   and isn't finalized, in round order: ingest results → score drivers/constructors/fantasy teams → adjust
-  salaries → settle expired contracts → apply the £100M team-value floor. Then, in the 24h before the next
+  salaries → settle expired contracts → apply the £100M team-value floor. A locked weekend whose race isn't
+  processed yet gets its qualifying/sprint scored live. Then, in the 24h before the next
   lockdown, it emails members with an incomplete team (once per race). Idempotent; between race weekends it
   only refreshes the calendar.
 - Reminder emails from autopilot need `RESEND_API_KEY`, `EMAIL_FROM` and `FRONTEND_URL` as GitHub Actions secrets

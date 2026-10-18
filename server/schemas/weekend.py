@@ -41,7 +41,8 @@ class QualiEntryResponse(BaseModel):
 class WeekendResponse(BaseModel):
     race: RaceDetailResponse
     locked: bool
-    scored: bool
+    scored: bool  # points are in — live after qualifying/sprint
+    final: bool  # race result scored; winners are set
     winners: list[LineupResponse]
     lineups: list[LineupResponse]
     hidden_lineups: int
