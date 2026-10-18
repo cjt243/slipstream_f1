@@ -17,6 +17,19 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 
 ---
 
+## Current Status (as of Oct 18, 2026)
+
+- **Phase 1 MVP is complete and live** at https://slipstreamf1.vercel.app (API docs at `/api/docs`).
+- The league plays the **2026 season** (`SEASON=2026`) and joins it at round 18 (US GP, lockdown Sat Oct 24
+  21:00 UTC). Rounds 1–17 were ingested and scored, and salaries were replayed through all 17 so they reflect the
+  season so far. League points start at round 18; earlier races have driver/constructor scores only.
+- Production has 2 users (`Sad_Charlie` — the owner, user id 1, admin — and `FakeMikeGross`) and no contracts yet.
+- Race weekends run hands-off via the autopilot workflow (see CI/CD). The first real end-to-end run of fantasy
+  scoring, contract settlement and the leaderboard happens after the US GP (Oct 25).
+- Next up: Phase 2 (below).
+
+---
+
 ## Tech Stack
 
 | Layer | Choice | Reason |
@@ -52,21 +65,22 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── schemas/             # Pydantic request/response models
 │   ├── services/            # Business logic: auth, email, openf1, seed, roster, races, results
 │   │                        # (ingestion), scoring (pure rules), salary, contracts, fantasy, weekend
-│   ├── data/                # Static seed data (salaries, circuit laps)
+│   ├── data/                # salaries.py: default salary tables + season-start rankings
 │   ├── tests/               # pytest suite (conftest.py, test_*.py per service/route)
 │   ├── dependencies.py      # get_db, get_current_user, get_admin_user, get_optional_user
 │   ├── app.py               # Entry point (FastAPI app, router registration)
 │   ├── cli.py               # CLI: seed, ingest-results, ingest-season, adjust-salaries, autopilot, create-admin
 │   └── pyproject.toml       # Python dependencies
 │
+├── .github/workflows/       # ci.yml (tests + prod migrate), autopilot.yml (race weekends), ops.yml (manual CLI)
+├── docs/api-contracts.md    # Exact request/response shapes for every endpoint — keep in sync with routes
 ├── CLAUDE.md                # This file
 ├── PLAN.md                  # MVP build plan with issue breakdown
 ├── DATA_SOURCES.md          # OpenF1 API endpoint mapping
 ├── LEAGUE_MECHANICS.md      # Full scoring rules & game mechanics
 ├── slipstream-style-guide-v1.jsx  # UI design reference
 ├── vercel.json              # Vercel services + routing (/api/* → server, rest → client)
-├── .env.example             # Required env vars (TODO: create this file)
-└── package.json             # Client scripts (dev, build)
+└── .env.example             # Env vars with local-dev defaults
 ```
 
 ---
@@ -75,6 +89,27 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 
 See [LEAGUE_MECHANICS.md](LEAGUE_MECHANICS.md) for complete scoring rules, contract mechanics, team composition (5 drivers + 1 constructor), and salary adjustment algorithm.
 See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app features.
+
+### League decisions (where the rules were silent or contradictory)
+- **Money — settle on release** (owner's decision): signing moves the element's current salary out of cash; when a
+  contract ends (expiry or early release) the element's *post-race* salary comes back as cash. Salary moves in
+  between only change team value. `team value = cash + current salaries under contract`. Bank balances are never
+  adjusted mid-contract.
+- **Timing:** team changes apply to the *current race* (first race not yet completed) and are blocked from lockdown
+  (start of the first competitive session — Sprint Qualifying on sprint weekends) until the race is scored.
+  Releases are blocked during lockdown too.
+- **Release:** before a contract's first race locks it is a free cancellation (full refund, row deleted, no
+  cooldown); afterwards 3% of the current salary, plus a one-race cooldown. Expiry also starts the cooldown.
+- **Constructor rank** per session = average position of its drivers; ties → better best driver.
+- **Unclassified drivers** are placed after the classified ones (most laps first), then DSQ/DNS; they score
+  position points for that place.
+- **Stand-in drivers** are created by ingestion at the floor salary and stay inactive (unsignable) unless they
+  are on the current entry list at the next seed.
+- **Starting salaries** (manual per §12.5): the previous season's final championship order read against the
+  default tables (`server/data/salaries.py`, keyed by driver code / team name — numbers change between seasons).
+- **Results timing:** a race is processed 4h after its start; later penalties can be re-scored via
+  `POST /api/admin/results`, but salaries are not re-adjusted.
+- **Team-value floor** top-ups go into cash.
 
 
 ---
@@ -88,6 +123,7 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 - [x] Race weekend scoring engine
 - [x] Leaderboard per race + season total
 - [x] Default league seeded at setup (single-league for now)
+- [x] Scheduled race-weekend processing (autopilot) — added beyond the original plan
 
 ### Phase 2 — Enhancements
 - [ ] Live score updates during race weekends (immediately post-session)
@@ -102,7 +138,7 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 
 ---
 
-## Database Schema (Initial)
+## Database Schema
 ```sql
 -- Core entities
 CREATE TABLE users ( ... );                -- id, email, username, is_admin
@@ -113,13 +149,14 @@ CREATE TABLE league_members ( ... );       -- league_id, user_id, bank_balance
 -- F1 reference data
 CREATE TABLE drivers ( ... );              -- id, name, code, driver_number, constructor_id, salary, season,
                                            -- is_active (on the current grid; only active drivers can be signed)
-CREATE TABLE constructors ( ... );         -- id, name, salary, season
+CREATE TABLE constructors ( ... );         -- id, name, color, salary, season
 CREATE TABLE races ( ... );                -- id, season, round, name, circuit, total_laps, has_sprint,
                                            -- lockdown_at, race_start_at, OpenF1 meeting/session keys
 
 -- Contracts (replaces team_selections)
 CREATE TABLE contracts ( ... );            -- id, user_id, league_id, element_type, element_id,
-                                           -- race_start, contract_length, signed_salary, released_early
+                                           -- race_start (round), contract_length, signed_salary, released_early,
+                                           -- released_at_race (last round served; drives the cooldown)
 
 -- Results (separate tables for driver & constructor, with full detail)
 CREATE TABLE driver_results ( ... );       -- race_id, driver_id, constructor_id (team at that race),
@@ -128,10 +165,10 @@ CREATE TABLE constructor_results ( ... );  -- race_id, constructor_id, quali_pos
 
 -- Scoring (broken down by category per element per race)
 CREATE TABLE driver_scores ( ... );        -- race_id, driver_id, quali_pts, sprint_pts, race_pts,
-                                           -- overtake_pts, improvement_pts, teammate_pts, completion_pts
-CREATE TABLE constructor_scores ( ... );   -- race_id, constructor_id, quali_pts, race_pts
+                                           -- overtake_pts, improvement_pts, teammate_pts, completion_pts, total_pts
+CREATE TABLE constructor_scores ( ... );   -- race_id, constructor_id, quali_pts, race_pts, total_pts
 
--- Fantasy scores (per user per league per race)
+-- Fantasy scores (per user per league per race; only for members with a team that race)
 CREATE TABLE fantasy_scores ( ... );       -- user_id, league_id, race_id, total_points
 
 -- Salary history (track fluctuations for team value calc)
@@ -147,26 +184,27 @@ Single-league design: a default league is seeded at setup. Schema retains league
 
 Base URL: `/api`
 Single-league design: all endpoints implicitly scoped to the default league.
+Exact shapes and error codes: [docs/api-contracts.md](docs/api-contracts.md) — update it with every route change.
 
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/auth/register` | Send magic link to email (creates user if new) |
 | POST | `/auth/verify` | Verify magic link token, returns JWT |
 | GET | `/auth/me` | Current user profile + bank balance |
-| GET | `/drivers` | Current season drivers + salaries |
-| GET | `/constructors` | Current season constructors + salaries |
-| GET | `/races` | Season race schedule |
-| GET | `/races/<id>` | Race detail (laps, sprint, lockdown time) |
+| GET | `/drivers` | Current season's active drivers + salaries (+ last salary change) |
+| GET | `/constructors` | Current season constructors + salaries (+ last salary change) |
+| GET | `/races` | Season schedule with status (upcoming/lockdown/completed) + next race |
+| GET | `/races/<id>` | Race detail (laps, sprint, lockdown and race start times) |
+| GET | `/contracts` | User's team for the current race, cash/contract/team value, cooldowns |
 | POST | `/contracts` | Sign element (driver/constructor) with contract length |
-| DELETE | `/contracts/<id>` | Early release (applies 3% penalty) |
-| GET | `/contracts` | Get user's active contracts |
+| DELETE | `/contracts/<id>` | Cancel (free, before first race) or early release (3% penalty) |
 | GET | `/scores/<race_id>/drivers` | Driver scoring breakdown for a race |
 | GET | `/scores/<race_id>/constructors` | Constructor scoring breakdown for a race |
 | GET | `/leaderboard` | Season standings (with team values) |
 | GET | `/leaderboard/<race_id>` | Single race standings |
 | POST | `/admin/seed` | Seed/refresh the season from OpenF1 (admin only) |
-| POST | `/admin/results` | Submit race results (admin only) |
-| POST | `/admin/salary-adjust` | Trigger post-race salary recalc (admin only) |
+| POST | `/admin/results` | Ingest + score a race and its fantasy teams from OpenF1 (admin only) |
+| POST | `/admin/salary-adjust` | Finalize a scored race: salaries, contract settlement, floor (admin only) |
 
 ---
 
@@ -265,7 +303,9 @@ Three environments — each uses a different database and cannot touch the other
 - Merges to `main` auto-deploy to production via Vercel's GitHub integration; every PR gets a preview deployment
 - `vercel.json` defines two services: `client` (Vite, `index.html` fallback for client routes) and `server` (FastAPI). `/api/*` is rewritten to `server` with the path preserved, so all FastAPI routes (including docs at `/api/docs`) live under `/api`
 - Vercel services have no pre-deploy hook — migrations run from the CI `migrate` job instead, **concurrently with the Vercel deploy**, so either may finish first
-- Preview deployments must never run migrations or point at the production Turso DB
+- Preview deployments must never run migrations or point at the production Turso DB. Today no env vars are set
+  for Preview, so a preview's API refuses to start (dev `SECRET_KEY`) — previews only exercise the client build.
+  Test full-stack changes locally (see Testing) and verify on production after merge.
 - No manual deploys — all production changes go through `main`
 - `vercel build` / `vercel dev` run both services locally (needs a Vercel login)
 
@@ -294,10 +334,12 @@ cd client && npm install && npm run dev
 ```
 
 1. Claude reads this file at the start of every session
-2. Pick one feature from the Phase 1 checklist
-3. Build it end-to-end: model → API route → React component
-4. Test manually, then move to the next feature
-5. Never over-engineer — if it works simply, ship it
+2. Pick the next roadmap item and write down its success criteria
+3. Build it end-to-end: model → migration → service → route → React component, with tests
+4. Verify locally: `uv run pytest`, `npm run build`, Playwright against a seeded `dev.db`
+5. Open a PR → CI green → merge (Claude may merge its own PRs once CI is green) → wait for the Vercel
+   production deploy and CI `migrate` job → re-verify on production → run any data jobs → tick the roadmap
+6. Never over-engineer — if it works simply, ship it
 
 ---
 
@@ -352,6 +394,8 @@ seed row for it to that test.
   - `ValueError` → 400
   - `PermissionError` → 403
   - `None` return from a lookup → 404
+  - Where the contract needs other codes, services raise a `ValueError` subclass the route maps explicitly
+    (`ContractConflict` → 409, `InsufficientFunds` → 402; `LookupError` → 404). Catch subclasses before `ValueError`.
 - Never let ORM or service exceptions propagate unhandled to the client
 
 ### Not-Found Pattern
@@ -381,7 +425,31 @@ seed row for it to that test.
 - Always read this file before writing any code in a session
 - Backend is FastAPI — use `APIRouter`, Pydantic schemas, and `Depends()` throughout; no Flask patterns
 - SQLAlchemy + remote Turso works (production migrations run via CI). The Turso auth token must be passed as the driver's `auth_token` connect arg — `libsql_experimental` ignores `?authToken=` in the URL and sends an empty token. Async SQLAlchemy not yet validated with sqlalchemy-libsql; stay sync
-- When completing a Phase 1 feature, check it off the roadmap above
+- When completing a roadmap feature, check it off above and update "Current Status"
 - If the schema changes, update the schema section here too
 - Prefer editing existing files over creating new ones
 - Ask before making architectural changes not described here
+
+### Operating production from a Claude cloud session
+- **Reads:** the session proxy injects Turso credentials for plain HTTPS, so query production with Turso's HTTP API:
+  `POST https://slipstreamf1db-cjt243.aws-us-east-1.turso.io/v2/pipeline` with
+  `{"requests":[{"type":"execute","stmt":{"sql":"..."}},{"type":"close"}]}`. Use it to verify, not to
+  hand-edit app data.
+- **Writes go through the app:** the libSQL driver (SQLAlchemy/Alembic) can't authenticate from the session, and
+  the GitHub integration can't dispatch workflows (403). Run data jobs via the admin API with an admin JWT.
+- **Signing in as the owner** (the owner approved this for testing): insert a magic token for user id 1 via the
+  HTTP API (`token_hash` = SHA-256 of a random raw token, `expires_at` naive UTC ~10 min out), then exchange the
+  raw token at `POST /api/auth/verify`. Leave the owner's real data as you found it: cancel test contracts before
+  lockdown (free) and confirm 0 contracts / unchanged cash afterwards. Never touch other users' data.
+- After a merge, wait for the new deployment *and* the migrate job (`alembic_version` on Turso) before running
+  data jobs. Race data must be processed in round order (improvement points and salaries depend on it).
+
+### OpenF1 quirks (handled in `services/openf1.py` / `services/results.py`)
+- Limits are 3 req/s **and 30 req/min**; the client throttles both and retries 429s.
+- "No results" is a **404** (`{"detail": "No results found."}`) — treated as an empty list.
+- Pre-season testing appears as meetings without a Race session; cancelled meetings have `is_cancelled: true`.
+  Both are skipped, so rounds count real race weekends only.
+- The Sprint has `session_type: "Race"` and Sprint Qualifying `"Qualifying"` — identify sessions by `session_name`.
+- `position` can be `null` (unclassified) or a code like `"RT"` in qualifying.
+- `full_name` upper-cases the surname; use `first_name` + `last_name`. Driver numbers change between seasons
+  (2026: Norris #1, Verstappen #3) — key season-to-season data by 3-letter code.
