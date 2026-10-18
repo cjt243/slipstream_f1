@@ -11,8 +11,12 @@ on:
         type: choice
         options:
           - seed
+          - autopilot
+          - ingest-results
+          - adjust-salaries
+          - create-admin
       args:
-        description: "Extra arguments, e.g. --season 2026"
+        description: "Extra arguments, e.g. --round 18 or --email you@example.com"
         required: false
         default: ""
 
