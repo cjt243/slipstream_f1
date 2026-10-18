@@ -28,3 +28,12 @@ class ResultsResponse(BaseModel):
 class SalaryAdjustResponse(BaseModel):
     race_id: int
     adjustments: int
+
+
+class RemindersResponse(BaseModel):
+    race_id: int | None
+    race_name: str | None
+    due: bool  # lockdown is within the reminder window
+    sent: list[str]  # usernames emailed by this call
+    logged: list[str]  # usernames whose email was only logged: no RESEND_API_KEY (not recorded)
+    failed: list[str]  # usernames whose email failed (retried on the next run)

@@ -4,7 +4,7 @@
     uv run python cli.py ingest-results --round 17 [--season 2026]
     uv run python cli.py ingest-season [--season 2026]   # ingest + score + adjust salaries
     uv run python cli.py adjust-salaries --round 17 [--season 2026]
-    uv run python cli.py autopilot [--season 2026]   # scheduled job: refresh + process due races
+    uv run python cli.py autopilot [--season 2026]   # scheduled job: refresh, process due races, remind
     uv run python cli.py create-admin --email you@example.com
 
 Connects to whatever database the environment selects (dev.db locally, Turso
@@ -21,6 +21,7 @@ from models import User
 from services import races as race_service
 from services.openf1 import OpenF1Client
 from services.results import process_race_results
+from services.notifications import send_lineup_reminders
 from services.salary import is_adjusted
 from services.weekend import finalize_race, process_due_races
 from services.seed import seed_all
@@ -107,14 +108,19 @@ def adjust(
 
 @app.command()
 def autopilot(season: int = typer.Option(settings.season, help="Season.")) -> None:
-    """Refresh the calendar and grid, then ingest, score and finalize every
-    race whose results are due. Safe to run as often as you like."""
+    """Refresh the calendar and grid, ingest, score and finalize every race
+    whose results are due, then send lineup reminders for the next race if it
+    locks within 24h. Safe to run as often as you like."""
     client = OpenF1Client()
     try:
         with SessionLocal() as db:
             _echo(seed_all(db, client, season))
             for line in process_due_races(db, client, season, race_service.utcnow()):
                 typer.echo(line)
+            run = send_lineup_reminders(db, season, race_service.utcnow())
+            if run.sent or run.logged or run.failed:
+                typer.echo(f"Lineup reminders for {run.race.name}: sent {run.sent}, "
+                           f"logged only (no RESEND_API_KEY) {run.logged}, failed {run.failed}")
     finally:
         client.close()
 
