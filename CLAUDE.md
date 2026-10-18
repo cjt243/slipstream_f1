@@ -23,7 +23,8 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 - The league plays the **2026 season** (`SEASON=2026`) and joins it at round 18 (US GP, lockdown Sat Oct 24
   21:00 UTC). Rounds 1–17 were ingested and scored, and salaries were replayed through all 17 so they reflect the
   season so far. League points start at round 18; earlier races have driver/constructor scores only.
-- Production has 2 users (`Sad_Charlie` — the owner, user id 1, admin — and `FakeMikeGross`), both signing teams for round 18.
+- Production has 2 real users (`Sad_Charlie` — the owner, user id 1, admin — and `FakeMikeGross`), neither with a
+  contract yet, plus six `Sim_*` league members (ids 3–8) holding 33 round-18 contracts, created outside this repo.
 - Race weekends run hands-off via the autopilot workflow (see CI/CD). The first real end-to-end run of fantasy
   scoring, contract settlement and the leaderboard happens after the US GP (Oct 25).
 - Phase 2 is complete. Next up: Phase 3 (below).
