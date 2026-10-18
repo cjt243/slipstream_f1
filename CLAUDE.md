@@ -110,7 +110,8 @@ CREATE TABLE leagues ( ... );              -- id, name, invite_code, owner_id
 CREATE TABLE league_members ( ... );       -- league_id, user_id, bank_balance
 
 -- F1 reference data
-CREATE TABLE drivers ( ... );              -- id, name, constructor_id, salary, season
+CREATE TABLE drivers ( ... );              -- id, name, code, driver_number, constructor_id, salary, season,
+                                           -- is_active (on the current grid; only active drivers can be signed)
 CREATE TABLE constructors ( ... );         -- id, name, salary, season
 CREATE TABLE races ( ... );                -- id, season, round, name, circuit, total_laps, has_sprint,
                                            -- lockdown_at, race_start_at, OpenF1 meeting/session keys

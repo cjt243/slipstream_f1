@@ -2,7 +2,8 @@
 
     uv run python cli.py seed [--season 2026]
     uv run python cli.py ingest-results --round 17 [--season 2026]
-    uv run python cli.py ingest-season [--season 2026]
+    uv run python cli.py ingest-season [--season 2026]   # ingest + score + adjust salaries
+    uv run python cli.py adjust-salaries --round 17 [--season 2026]
     uv run python cli.py create-admin --email you@example.com
 
 Connects to whatever database the environment selects (dev.db locally, Turso
@@ -19,6 +20,7 @@ from models import User
 from services import races as race_service
 from services.openf1 import OpenF1Client
 from services.results import process_race_results
+from services.salary import adjust_salaries, is_adjusted
 from services.seed import seed_all
 
 app = typer.Typer(help="Slipstream admin commands.", no_args_is_help=True)
@@ -60,7 +62,8 @@ def ingest_results(
 
 @app.command("ingest-season")
 def ingest_season(season: int = typer.Option(settings.season, help="Season.")) -> None:
-    """Ingest and score every race that has results, in round order."""
+    """Ingest and score every race that has results, in round order, and apply
+    salary adjustments for races not yet adjusted."""
     client = OpenF1Client()
     try:
         with SessionLocal() as db:
@@ -69,9 +72,34 @@ def ingest_season(season: int = typer.Option(settings.season, help="Season.")) -
                 if processed is None:
                     typer.echo(f"R{race.round} {race.name}: no results — stopping")
                     break
-                typer.echo(f"R{race.round} {race.name}: {processed.drivers_scored} drivers scored")
+                adjusted = 0
+                if not is_adjusted(db, race):
+                    adjusted = adjust_salaries(db, race)
+                    db.commit()
+                typer.echo(f"R{race.round} {race.name}: {processed.drivers_scored} drivers scored, "
+                           f"{adjusted} salaries adjusted")
     finally:
         client.close()
+
+
+@app.command("adjust-salaries")
+def adjust(
+    round: int = typer.Option(..., "--round", help="Race round."),
+    season: int = typer.Option(settings.season, help="Season."),
+) -> None:
+    """Apply one scored race's salary adjustments (once, in round order)."""
+    with SessionLocal() as db:
+        race = race_service.get_race_by_round(db, season, round)
+        if race is None:
+            typer.echo(f"No round {round} in {season}", err=True)
+            raise typer.Exit(1)
+        try:
+            count = adjust_salaries(db, race)
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(1) from exc
+        db.commit()
+        _echo({"round": round, "adjustments": count})
 
 
 @app.command("create-admin")

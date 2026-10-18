@@ -85,9 +85,13 @@ def upsert_driver(
 def seed_drivers(
     db: Session, drivers_data: list[dict], season: int, constructors: dict[str, Constructor]
 ) -> list[Driver]:
-    drivers = [upsert_driver(db, d, season, constructors) for d in drivers_data]
+    """Upsert the current entry list; it defines who is active (signable)."""
+    drivers = [d for d in (upsert_driver(db, e, season, constructors) for e in drivers_data) if d]
+    current = {d.driver_number for d in drivers}
+    for driver in db.query(Driver).filter_by(season=season):
+        driver.is_active = driver.driver_number in current
     db.flush()
-    return [d for d in drivers if d is not None]
+    return drivers
 
 
 def seed_races(db: Session, races_data: list[dict], season: int) -> list[Race]:

@@ -5,9 +5,16 @@ from fastapi import APIRouter, HTTPException, status
 from config import settings
 from dependencies import AdminUser, DbSession, OpenF1
 from models import Race
-from schemas.admin import RaceRequest, ResultsResponse, SeedRequest, SeedResponse
+from schemas.admin import (
+    RaceRequest,
+    ResultsResponse,
+    SalaryAdjustResponse,
+    SeedRequest,
+    SeedResponse,
+)
 from services import races as race_service
 from services.results import process_race_results
+from services.salary import adjust_salaries
 from services.seed import seed_all
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -44,3 +51,15 @@ def ingest_results(
         drivers_scored=processed.drivers_scored,
         constructors_scored=processed.constructors_scored,
     )
+
+
+@router.post("/salary-adjust", response_model=SalaryAdjustResponse)
+def salary_adjust(body: RaceRequest, _: AdminUser, db: DbSession) -> SalaryAdjustResponse:
+    """Apply a scored race's salary adjustments (once per race, in round order)."""
+    race = _race_or_404(db, body.race_id)
+    try:
+        count = adjust_salaries(db, race)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    db.commit()
+    return SalaryAdjustResponse(race_id=race.id, adjustments=count)

@@ -82,6 +82,7 @@ def test_process_race_ingests_and_scores(db, weekend):
 
     reserve = db.query(Driver).filter_by(driver_number=40).one()
     assert reserve.salary == 400_000  # created at the floor
+    assert reserve.is_active is False  # stand-ins aren't signable until seeded
     res = {r.driver_id: r for r in db.query(DriverResult).filter_by(race_id=weekend.id)}
     assert res[reserve.id].quali_pos == 4  # "RT" placed after timed drivers
     assert res[reserve.id].race_pos == 2

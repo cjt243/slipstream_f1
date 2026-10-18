@@ -23,3 +23,8 @@ class ResultsResponse(BaseModel):
     race_id: int
     drivers_scored: int
     constructors_scored: int
+
+
+class SalaryAdjustResponse(BaseModel):
+    race_id: int
+    adjustments: int

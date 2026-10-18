@@ -120,3 +120,13 @@ def test_2026_starting_salaries_follow_ranking(seed_db):
     assert nor.salary == 34_000_000
     assert lin.salary == 400_000
     assert constructors["McLaren"].salary == 30_000_000
+
+
+def test_seed_marks_only_current_entries_active(seed_db):
+    seed_all(seed_db, FakeClient(), 2025)
+    stand_in = Driver(name="Stand In", driver_number=99, constructor_id=1, salary=1, season=2025)
+    seed_db.add(stand_in)
+    seed_db.flush()
+    seed_all(seed_db, FakeClient(), 2025)
+    assert stand_in.is_active is False
+    assert all(d.is_active for d in seed_db.query(Driver).filter(Driver.driver_number != 99))

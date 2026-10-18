@@ -12,6 +12,7 @@ class DriverResponse(BaseModel):
     constructor_name: str
     constructor_color: str | None
     salary: int
+    salary_change: int | None = None  # last post-race adjustment
     season: int
 
 
@@ -26,6 +27,7 @@ class ConstructorResponse(BaseModel):
     name: str
     color: str | None
     salary: int
+    salary_change: int | None = None  # last post-race adjustment
     season: int
 
 

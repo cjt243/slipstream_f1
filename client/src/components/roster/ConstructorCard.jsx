@@ -1,6 +1,5 @@
 import { C, FONT } from "../../lib/tokens";
-import { Mono } from "../ui";
-import { formatGBP } from "../../lib/format";
+import SalaryTag from "./SalaryTag";
 
 /** One constructor: name, team-color marker, salary. */
 export default function ConstructorCard({ constructor: team }) {
@@ -19,7 +18,7 @@ export default function ConstructorCard({ constructor: team }) {
           {team.name}
         </span>
       </div>
-      <Mono color={C.gold} size="text-sm">{formatGBP(team.salary)}</Mono>
+      <SalaryTag salary={team.salary} change={team.salary_change} color={C.gold} />
     </div>
   );
 }
