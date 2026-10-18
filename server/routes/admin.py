@@ -14,8 +14,7 @@ from schemas.admin import (
 )
 from services import races as race_service
 from services.results import process_race_results
-from services.contracts import settle_expired_contracts
-from services.salary import adjust_salaries
+from services.weekend import finalize_race
 from services.seed import seed_all
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -57,13 +56,11 @@ def ingest_results(
 @router.post("/salary-adjust", response_model=SalaryAdjustResponse)
 def salary_adjust(body: RaceRequest, _: AdminUser, db: DbSession) -> SalaryAdjustResponse:
     """Apply a scored race's salary adjustments (once per race, in round order),
-    then settle contracts that ended at this race."""
+    settle contracts that ended at this race and apply the team-value floor."""
     race = _race_or_404(db, body.race_id)
     try:
-        count = adjust_salaries(db, race)
+        count = finalize_race(db, race)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    # Contracts ending at this race pay out at the post-race salary.
-    settle_expired_contracts(db, race)
     db.commit()
     return SalaryAdjustResponse(race_id=race.id, adjustments=count)

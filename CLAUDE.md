@@ -84,9 +84,9 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 - [x] User auth (magic links)
 - [x] Driver + constructor roster (seeded from static data)
 - [x] Contract signing UI (budget-constrained, 1–5 race contracts)
-- [ ] Race weekend scoring engine
-- [ ] Leaderboard per race + season total
-- [ ] Default league seeded at setup (single-league for now)
+- [x] Race weekend scoring engine
+- [x] Leaderboard per race + season total
+- [x] Default league seeded at setup (single-league for now)
 
 ### Phase 2 — Enhancements
 - [ ] Live score updates during race weekends (immediately post-session)

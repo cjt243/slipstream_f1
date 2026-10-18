@@ -20,8 +20,8 @@ from models import User
 from services import races as race_service
 from services.openf1 import OpenF1Client
 from services.results import process_race_results
-from services.contracts import settle_expired_contracts
-from services.salary import adjust_salaries, is_adjusted
+from services.salary import is_adjusted
+from services.weekend import finalize_race
 from services.seed import seed_all
 
 app = typer.Typer(help="Slipstream admin commands.", no_args_is_help=True)
@@ -75,8 +75,7 @@ def ingest_season(season: int = typer.Option(settings.season, help="Season.")) -
                     break
                 adjusted = 0
                 if not is_adjusted(db, race):
-                    adjusted = adjust_salaries(db, race)
-                    settle_expired_contracts(db, race)
+                    adjusted = finalize_race(db, race)
                     db.commit()
                 typer.echo(f"R{race.round} {race.name}: {processed.drivers_scored} drivers scored, "
                            f"{adjusted} salaries adjusted")
@@ -89,18 +88,18 @@ def adjust(
     round: int = typer.Option(..., "--round", help="Race round."),
     season: int = typer.Option(settings.season, help="Season."),
 ) -> None:
-    """Apply one scored race's salary adjustments (once, in round order)."""
+    """Adjust one scored race's salaries (once, in round order), settle
+    contracts that ended there and apply the team-value floor."""
     with SessionLocal() as db:
         race = race_service.get_race_by_round(db, season, round)
         if race is None:
             typer.echo(f"No round {round} in {season}", err=True)
             raise typer.Exit(1)
         try:
-            count = adjust_salaries(db, race)
+            count = finalize_race(db, race)
         except ValueError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(1) from exc
-        settle_expired_contracts(db, race)
         db.commit()
         _echo({"round": round, "adjustments": count})
 
