@@ -65,7 +65,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── schemas/             # Pydantic request/response models
 │   ├── services/            # Business logic: auth, email, openf1, seed, roster, races, results
 │   │                        # (ingestion), scoring (pure rules), salary, contracts, fantasy, weekend,
-│   │                        # race_weekend (weekend view)
+│   │                        # notifications (lineup reminders), race_weekend (weekend view)
 │   ├── data/                # salaries.py: default salary tables + season-start rankings
 │   ├── tests/               # pytest suite (conftest.py, test_*.py per service/route)
 │   ├── dependencies.py      # get_db, get_current_user, get_admin_user, get_optional_user
@@ -131,6 +131,8 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 - [x] A deeper focus on each weekend - a dedicated "Race" view that focuses on qualifying stats, team lineups, and a Race weekend "winner" - similar to how fantasy football is very week to week focused
   (Weekend tab, `GET /weekend/{race_id}`; other teams' lineups are revealed at lockdown)
 - [ ] Notifications related to deadlines for lineup locking, star drivers
+  - [x] Lineup reminder email in the 24h before lockdown to members with an incomplete team (autopilot +
+    `POST /admin/reminders`)
 - [ ] Minimum points threshold for teams that forget to set their lineup
 
 ### Phase 3 — Polish
@@ -175,6 +177,9 @@ CREATE TABLE fantasy_scores ( ... );       -- user_id, league_id, race_id, total
 
 -- Salary history (track fluctuations for team value calc)
 CREATE TABLE salary_history ( ... );       -- element_type, element_id, race_id, salary_before, salary_after
+
+-- Emails sent per user per race (one per kind, so scheduled jobs never repeat one)
+CREATE TABLE notifications ( ... );        -- user_id, race_id, kind (lineup_reminder), sent_at
 ```
 
 See LEAGUE_MECHANICS.md for full scoring rules, contract mechanics, and salary adjustment algorithm.
@@ -208,6 +213,7 @@ Exact shapes and error codes: [docs/api-contracts.md](docs/api-contracts.md) —
 | POST | `/admin/seed` | Seed/refresh the season from OpenF1 (admin only) |
 | POST | `/admin/results` | Ingest + score a race and its fantasy teams from OpenF1 (admin only) |
 | POST | `/admin/salary-adjust` | Finalize a scored race: salaries, contract settlement, floor (admin only) |
+| POST | `/admin/reminders` | Email lineup reminders now if the next lockdown is within 24h (admin only) |
 
 ---
 
@@ -231,7 +237,7 @@ VITE_API_URL=http://localhost:3001/api         # client/.env — leave unset on 
 ```
 
 Production values (`TURSO_*`, `SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`) are set in the Vercel project's
-environment variables. The migration job reads `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` from
+environment variables. Empty values count as unset (`env_ignore_empty`), since CI passes missing secrets as `""`. The migration job reads `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` from
 GitHub Actions secrets (`production` environment or repo-level).
 Registration is **closed in production** (`REGISTRATION_OPEN` unset): only emails already in the
 `users` table can request a magic link; unknown emails get the same 200 but nothing is created or sent.
@@ -289,8 +295,12 @@ Three environments — each uses a different database and cannot touch the other
 - `.github/workflows/autopilot.yml` runs `cli.py autopilot` every two hours (and on manual dispatch) against
   production Turso: it refreshes the calendar and grid from OpenF1, then for every race that started 4+ hours ago
   and isn't finalized, in round order: ingest results → score drivers/constructors/fantasy teams → adjust
-  salaries → settle expired contracts → apply the £100M team-value floor. Idempotent; between race weekends it
+  salaries → settle expired contracts → apply the £100M team-value floor. Then, in the 24h before the next
+  lockdown, it emails members with an incomplete team (once per race). Idempotent; between race weekends it
   only refreshes the calendar.
+- Reminder emails from autopilot need `RESEND_API_KEY`, `EMAIL_FROM` and `FRONTEND_URL` as GitHub Actions secrets
+  (same values as on Vercel). Without the key they're only logged and not recorded, so `POST /admin/reminders`
+  (which runs on Vercel, where the key is set) still sends them.
 - Manual overrides: `POST /api/admin/results` re-scores a race (e.g. after a late penalty; salaries aren't
   re-adjusted), `POST /api/admin/salary-adjust` finalizes one.
 

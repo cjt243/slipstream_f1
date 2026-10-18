@@ -19,3 +19,7 @@ class ContractStatus(str, enum.Enum):
     ACTIVE = "active"
     EXPIRED = "expired"
     RELEASED = "released"
+
+
+class NotificationKind(str, enum.Enum):
+    LINEUP_REMINDER = "lineup_reminder"

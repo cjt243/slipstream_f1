@@ -440,3 +440,19 @@ than £100M has its cash topped up to the floor (LEAGUE_MECHANICS.md §6.3).
 
 Errors: `404` unknown race; `409` not scored yet, already adjusted, or an
 earlier round still needs adjusting.
+
+### POST /admin/reminders
+Email every member whose team for the current race is incomplete (fewer than
+5 drivers or no constructor), if its lockdown is within the next 24h. Each
+member is reminded at most once per race; the scheduled autopilot calls the
+same service every two hours, so this is for testing or an early nudge.
+A reminder is recorded only once Resend accepts it: `logged` (no
+`RESEND_API_KEY`) and `failed` members are retried on the next run.
+
+Response `200`:
+```json
+{ "race_id": 18, "race_name": "United States Grand Prix", "due": true,
+  "sent": ["FakeMikeGross"], "logged": [], "failed": [] }
+```
+`due` is `false` (and nothing is sent) outside the 24h window; `race_id` and
+`race_name` are `null` once the season is over.
