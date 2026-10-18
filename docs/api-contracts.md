@@ -39,7 +39,9 @@ Response `200`:
 { "message": "If that email is valid, a magic link has been sent." }
 ```
 The username is only used when creating a new account; an existing account's
-username is never changed by this endpoint.
+username is never changed by this endpoint. When registration is closed
+(`REGISTRATION_OPEN` false, the default), unknown emails get the same `200`
+but no account is created and no email is sent.
 
 Errors: `422` invalid email or blank username (e.g. `{"error": "email: Enter a valid email address"}`);
 `502` the email provider failed.

@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     # falls back to the deployment's own URL (see the validator below).
     frontend_url: str = "http://localhost:5173"
 
+    # Sign-up: when False (the default), only emails already in the users
+    # table can request a magic link. Set REGISTRATION_OPEN=true to allow
+    # new accounts (e.g. local dev).
+    registration_open: bool = False
+
     # Auth / JWT
     secret_key: str = DEV_SECRET_KEY
     jwt_expiry_days: int = 7

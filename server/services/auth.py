@@ -36,15 +36,18 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.query(User).filter_by(email=normalize_email(email)).one_or_none()
 
 
-def get_or_create_user(db: Session, email: str, username: str) -> User:
-    """Return the user for ``email``, creating them if new.
+def get_or_create_user(
+    db: Session, email: str, username: str, *, allow_create: bool = True
+) -> User | None:
+    """Return the user for ``email``, creating them if new and ``allow_create``.
 
-    New users are enrolled in the default league with the starting budget.
-    An existing user's username is left unchanged — otherwise anyone who knows
-    an email could rename that account.
+    Returns None for an unknown email when creation isn't allowed (closed
+    registration). New users are enrolled in the default league with the
+    starting budget. An existing user's username is left unchanged —
+    otherwise anyone who knows an email could rename that account.
     """
     user = get_user_by_email(db, email)
-    if user is not None:
+    if user is not None or not allow_create:
         return user
 
     user = User(email=normalize_email(email), username=username.strip())
