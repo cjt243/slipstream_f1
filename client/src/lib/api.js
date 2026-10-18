@@ -1,7 +1,8 @@
 // Thin fetch wrapper around the Slipstream API.
 // - Prepends VITE_API_URL (falls back to the Vite dev proxy at /api).
 // - Attaches the JWT from localStorage as a Bearer token.
-// - On 401, clears the token and redirects to /login.
+// - On 401 for a request that sent a token, clears it and redirects to /login
+//   (unauthenticated calls like /auth/verify surface their 401 to the caller).
 // - Surfaces the standard { error } body as a thrown Error.
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api";
@@ -21,8 +22,8 @@ export class ApiError extends Error {
 
 async function request(path, { method = "GET", body, auth = true } = {}) {
   const headers = { "Content-Type": "application/json" };
-  const token = getToken();
-  if (auth && token) headers.Authorization = `Bearer ${token}`;
+  const token = auth ? getToken() : null;
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
@@ -30,7 +31,7 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
     body: body != null ? JSON.stringify(body) : undefined,
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 && token) {
     clearToken();
     if (window.location.pathname !== "/login") {
       window.location.assign("/login");

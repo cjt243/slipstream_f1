@@ -81,7 +81,7 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 ## Features — Phased Roadmap
 
 ### Phase 1 — MVP (build first)
-- [ ] User auth (magic links)
+- [x] User auth (magic links)
 - [ ] Driver + constructor roster (seeded from static data)
 - [ ] Contract signing UI (budget-constrained, 1–5 race contracts)
 - [ ] Race weekend scoring engine
@@ -187,7 +187,10 @@ Production values (`TURSO_*`, `SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `FRO
 environment variables. The migration job reads `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` from
 GitHub Actions secrets (`production` environment or repo-level).
 The server refuses to start on Vercel (`VERCEL` env set) while `SECRET_KEY` is the dev default,
-so set it for both Production and Preview environments.
+so set it for both Production and Preview environments. On Vercel production it also refuses to
+start without `TURSO_DATABASE_URL` (the `dev.db` fallback can't be opened there). If
+`FRONTEND_URL` is unset on Vercel, magic links use the deployment's own URL
+(`VERCEL_BRANCH_URL`, else `VERCEL_URL`), so previews link back to themselves.
 
 ---
 

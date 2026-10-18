@@ -49,6 +49,12 @@ async def validation_error(request: Request, exc: RequestValidationError) -> JSO
     return JSONResponse({"error": message}, status_code=422)
 
 
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    # Starlette re-raises after responding, so the traceback still reaches logs.
+    return JSONResponse({"error": "Internal server error"}, status_code=500)
+
+
 # All API routes are mounted under /api.
 api = APIRouter(prefix="/api")
 
