@@ -174,6 +174,7 @@ PORT=3001
 SECRET_KEY=your_secret_here
 JWT_EXPIRY_DAYS=7
 REGISTRATION_OPEN=true                         # default false: only existing users can sign in
+SEASON=2026                                    # season the league plays (default 2026)
 TURSO_DATABASE_URL=libsql://your-db.turso.io  # omit locally to use SQLite fallback
 TURSO_AUTH_TOKEN=your_token_here               # omit locally
 
@@ -239,6 +240,14 @@ Three environments — each uses a different database and cannot touch the other
 - On push to `main` only, after tests pass, the `migrate` job runs `alembic upgrade head` against production Turso (fails loudly if the Turso secrets are missing)
 - CI must pass before merging — never merge a branch with failing tests
 
+### Production ops (GitHub Actions)
+- `.github/workflows/ops.yml` runs a `server/cli.py` command against production Turso on manual dispatch
+  (`command` choice + optional `args`). It applies migrations first and shares the `migrate-production`
+  concurrency group, so it never overlaps a migration.
+- Use it for seeding and other admin data jobs — the libSQL driver can't authenticate from a Claude cloud
+  session, so production writes from code go through this workflow.
+- Seed production: dispatch `ops.yml` with `command=seed` after the PR that needs the data is merged.
+
 ### Continuous Deployment (Vercel)
 - Merges to `main` auto-deploy to production via Vercel's GitHub integration; every PR gets a preview deployment
 - `vercel.json` defines two services: `client` (Vite, `index.html` fallback for client routes) and `server` (FastAPI). `/api/*` is rewritten to `server` with the path preserved, so all FastAPI routes (including docs at `/api/docs`) live under `/api`
@@ -261,6 +270,7 @@ Three environments — each uses a different database and cannot touch the other
 ```bash
 # Backend (FastAPI)
 cd server && uv run alembic upgrade head   # apply migrations to dev.db
+cd server && uv run python cli.py seed     # fetch the season from OpenF1 into dev.db (idempotent)
 cd server && uv run uvicorn app:app --port 3001 --reload
 
 # Run tests

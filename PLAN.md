@@ -123,8 +123,8 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
   - `fetch_race_results(session_key)` → `/v1/session_result` only (provides positions, laps completed, DNF status — no need for `/laps` or `/overtakes` endpoints)
 - Rate limiting: max 3 req/s (3-4 calls per race weekend, ~25 calls for season setup)
 - `total_laps` per race: not available pre-race from OpenF1 — hardcode per circuit in seed data, or backfill from race leader's `number_of_laps` after results ingestion
-- `seed.py`: orchestrates initial seeding — constructors, drivers with hardcoded initial salaries (static table ranked by 2025 standings, defined in `server/data/salaries_2025.py`), races with lockdown times from session start times
-- `server/data/salaries_2025.py`: static dict mapping driver/constructor IDs to initial salary values per the default salary table in LEAGUE_MECHANICS.md
+- `seed.py`: orchestrates initial seeding — constructors, drivers with hardcoded initial salaries (static table ranked by 2025 standings, defined in `server/data/salaries.py`), races with lockdown times from session start times
+- `server/data/salaries.py`: static dict mapping driver/constructor IDs to initial salary values per the default salary table in LEAGUE_MECHANICS.md
 
 ### 1C: App Shell + Routing
 **Files:** `client/src/App.jsx`, `components/layout/Header.jsx`, `layout/BottomNav.jsx`, `context/AuthContext.jsx`, `components/ProtectedRoute.jsx`, page stubs
@@ -301,7 +301,7 @@ Define exact JSON request/response shapes for all Phase 1 endpoints. Both devs c
 ---
 
 ## Key Design Decisions
-- **Salaries**: Hardcoded in `server/data/salaries_2025.py` (not derived from OpenF1). OpenF1 provides driver/constructor/race data; we assign fantasy salaries ourselves.
+- **Salaries**: Hardcoded in `server/data/salaries.py` (not derived from OpenF1). OpenF1 provides driver/constructor/race data; we assign fantasy salaries ourselves.
 - **Admin**: Simple `is_admin` boolean on User model. Admin endpoints check this. Set via `uv run python cli.py create-admin --email`.
 - **Dev assignment**: Issues are self-contained — either dev can pick up any issue. Suggested tracks minimize blocking but aren't mandatory.
 

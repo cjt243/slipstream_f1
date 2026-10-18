@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # new accounts (e.g. local dev).
     registration_open: bool = False
 
+    # The season the league is playing (drivers, races and contracts).
+    season: int = 2026
+
     # Auth / JWT
     secret_key: str = DEV_SECRET_KEY
     jwt_expiry_days: int = 7

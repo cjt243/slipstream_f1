@@ -9,31 +9,58 @@ See DATA_SOURCES.md for the full field mapping. Methods return plain dicts in
 """
 
 import time
+from collections import deque
 
 import httpx
 
 BASE_URL = "https://api.openf1.org/v1"
-MIN_INTERVAL = 1 / 3  # 3 requests/second (free tier)
+# Free tier: 3 requests/second and 30 requests/minute.
+MIN_INTERVAL = 1 / 3
+PER_MINUTE = 30
+MAX_RETRIES = 4
 
 
 class OpenF1Client:
     def __init__(self, base_url: str = BASE_URL, *, client: httpx.Client | None = None,
-                 min_interval: float = MIN_INTERVAL):
+                 min_interval: float = MIN_INTERVAL, per_minute: int = PER_MINUTE,
+                 retry_wait: float = 10.0):
         self._base_url = base_url.rstrip("/")
         self._min_interval = min_interval
-        self._last_request = 0.0
+        self._per_minute = per_minute
+        self._retry_wait = retry_wait
+        self._recent: deque[float] = deque()  # request times in the last minute
         self._client = client or httpx.Client(timeout=30.0)
 
     # --- low-level ---------------------------------------------------------
 
-    def _get(self, path: str, params: dict) -> list[dict]:
-        wait = self._min_interval - (time.monotonic() - self._last_request)
+    def _throttle(self) -> None:
+        now = time.monotonic()
+        while self._recent and now - self._recent[0] >= 60:
+            self._recent.popleft()
+        waits = []
+        if self._recent:
+            waits.append(self._min_interval - (now - self._recent[-1]))
+        if self._per_minute and len(self._recent) >= self._per_minute:
+            waits.append(60 - (now - self._recent[0]))
+        wait = max(waits, default=0)
         if wait > 0:
             time.sleep(wait)
-        resp = self._client.get(f"{self._base_url}{path}", params=params)
-        self._last_request = time.monotonic()
-        resp.raise_for_status()
-        return resp.json()
+        self._recent.append(time.monotonic())
+
+    def _get(self, path: str, params: dict) -> list[dict]:
+        """GET a list endpoint. OpenF1 answers 404 when nothing matches (e.g. a
+        session with no results yet) — that is returned as an empty list."""
+        for attempt in range(MAX_RETRIES + 1):
+            self._throttle()
+            resp = self._client.get(f"{self._base_url}{path}", params=params)
+            if resp.status_code == 429 and attempt < MAX_RETRIES:
+                time.sleep(self._retry_wait * (attempt + 1))
+                continue
+            if resp.status_code == 404:
+                return []
+            resp.raise_for_status()
+            return resp.json()
+        raise RuntimeError("unreachable")
 
     # --- drivers & constructors -------------------------------------------
 
@@ -47,7 +74,7 @@ class OpenF1Client:
                 continue
             by_number[num] = {
                 "driver_number": num,
-                "name": r.get("full_name"),
+                "name": _display_name(r),
                 "code": r.get("name_acronym"),
                 "team_name": r.get("team_name"),
                 "team_color": _hex(r.get("team_colour")),
@@ -75,12 +102,19 @@ class OpenF1Client:
 
     def fetch_races(self, year: int) -> list[dict]:
         """Full season calendar with sprint flag, lockdown time, and the
-        session keys later used for results ingestion."""
+        session keys later used for results ingestion.
+
+        Cancelled meetings and meetings without a Race session (pre-season
+        testing) are skipped, so rounds count only real race weekends."""
         meetings = sorted(self.fetch_meetings(year), key=lambda m: m.get("date_start") or "")
         races: list[dict] = []
-        for idx, m in enumerate(meetings, start=1):
+        for m in meetings:
+            if m.get("is_cancelled"):
+                continue
             sessions = self.fetch_sessions(m["meeting_key"])
-            races.append(_build_race(m, sessions, round_number=idx))
+            if _session_key(sessions, "Race") is None:
+                continue
+            races.append(_build_race(m, sessions, round_number=len(races) + 1))
         return races
 
     # --- results -----------------------------------------------------------
@@ -92,6 +126,14 @@ class OpenF1Client:
         self._client.close()
 
 
+def _display_name(row: dict) -> str | None:
+    """'Lando Norris' — OpenF1's full_name upper-cases the surname."""
+    first, last = row.get("first_name"), row.get("last_name")
+    if first and last:
+        return f"{first} {last}"
+    return row.get("full_name")
+
+
 def _hex(color: str | None) -> str | None:
     """OpenF1 returns colours like 'FF8000' without the leading '#'."""
     if not color:
@@ -101,13 +143,15 @@ def _hex(color: str | None) -> str | None:
 
 def _session_key(sessions: list[dict], name: str) -> int | None:
     for s in sessions:
-        if s.get("session_name") == name:
+        if s.get("session_name") == name and not s.get("is_cancelled"):
             return s.get("session_key")
     return None
 
 
 def _build_race(meeting: dict, sessions: list[dict], round_number: int) -> dict:
-    has_sprint = any(s.get("session_type") == "Sprint" for s in sessions)
+    # OpenF1 types the Sprint as session_type "Race" (and Sprint Qualifying as
+    # "Qualifying"), so the sprint is identified by name.
+    has_sprint = _session_key(sessions, "Sprint") is not None
 
     # Lockdown = start of the first non-practice (competitive) session:
     # Friday qualifying on sprint weekends, Saturday qualifying otherwise.

@@ -5,8 +5,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from datetime import datetime
+
 from models import Base, Constructor, Driver, League, Race
-from services.seed import seed_all
+from services.seed import _representative_session_key, seed_all, seed_constructors, seed_drivers
 
 RACES_DATA = [
     {"season": 2025, "round": 1, "name": "Bahrain GP", "circuit": "Sakhir",
@@ -40,8 +42,8 @@ class FakeClient:
 
     def fetch_drivers(self, session_key="latest"):
         self.driver_calls += 1
-        # the season's session key should be used, not "latest"
-        assert session_key == 102
+        # the season's most recent started weekend, not "latest"
+        assert session_key == 204
         return DRIVERS_DATA
 
 
@@ -86,3 +88,35 @@ def test_seed_all_is_idempotent(seed_db):
     first = _counts(seed_db)
     seed_all(seed_db, FakeClient(), 2025)  # run again
     assert _counts(seed_db) == first  # no duplicate rows
+
+
+def test_representative_session_is_latest_started_weekend():
+    before_season = datetime(2025, 2, 1)
+    mid_season = datetime(2025, 3, 5)
+    assert _representative_session_key(RACES_DATA, now=before_season) == 102
+    assert _representative_session_key(RACES_DATA, now=mid_season) == 102
+    assert _representative_session_key(RACES_DATA, now=datetime(2025, 4, 1)) == 204
+
+
+def test_reseed_moves_driver_to_new_team_but_keeps_salary(seed_db):
+    seed_all(seed_db, FakeClient(), 2025)
+    ver = seed_db.query(Driver).filter_by(driver_number=1).one()
+    ver.salary = 12_300_000  # adjusted by the salary engine since seeding
+    moved = [dict(DRIVERS_DATA[0], team_name="McLaren", team_color="#FF8000")]
+    constructors = seed_constructors(seed_db, moved, 2025)
+    seed_drivers(seed_db, moved, 2025, constructors)
+    seed_db.refresh(ver)
+    assert ver.constructor.name == "McLaren"
+    assert ver.salary == 12_300_000
+
+
+def test_2026_starting_salaries_follow_ranking(seed_db):
+    data = [
+        {"driver_number": 1, "name": "Lando Norris", "code": "NOR", "team_name": "McLaren"},
+        {"driver_number": 41, "name": "Arvid Lindblad", "code": "LIN", "team_name": "Racing Bulls"},
+    ]
+    constructors = seed_constructors(seed_db, data, 2026)
+    nor, lin = seed_drivers(seed_db, data, 2026, constructors)
+    assert nor.salary == 34_000_000
+    assert lin.salary == 400_000
+    assert constructors["McLaren"].salary == 30_000_000

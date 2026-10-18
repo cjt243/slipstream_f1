@@ -8,16 +8,22 @@ export function useDrivers() {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [usingMock, setUsingMock] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     let active = true;
     api
       .get("/drivers", { auth: false })
       .then((data) => active && setDrivers(data?.drivers ?? []))
-      .catch(() => {
+      .catch((err) => {
         if (!active) return;
-        setDrivers(MOCK_DRIVERS);
-        setUsingMock(true);
+        // Mock data is a local-dev convenience only; production surfaces the error.
+        if (import.meta.env.DEV) {
+          setDrivers(MOCK_DRIVERS);
+          setUsingMock(true);
+        } else {
+          setError(err.message);
+        }
       })
       .finally(() => active && setLoading(false));
     return () => {
@@ -25,5 +31,5 @@ export function useDrivers() {
     };
   }, []);
 
-  return { drivers, loading, usingMock };
+  return { drivers, loading, usingMock, error };
 }
