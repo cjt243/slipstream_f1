@@ -29,7 +29,16 @@ export default function RaceDetailPage() {
 
   return (
     <>
-      <BackLink />
+      <div className="flex items-center justify-between">
+        <BackLink />
+        <Link
+          to={`/weekend/${race.id}`}
+          className="inline-block mb-3"
+          style={{ fontSize: 11, fontFamily: FONT.mono, color: C.speed, textDecoration: "none", letterSpacing: "0.1em" }}
+        >
+          WEEKEND VIEW →
+        </Link>
+      </div>
       <Card accent={race.status === "upcoming" ? C.speed : undefined}>
         <div className="flex items-center gap-2 mb-1">
           <Mono color={C.speed} size="text-xs">ROUND {race.round}</Mono>

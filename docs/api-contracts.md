@@ -342,6 +342,52 @@ Errors: `404` unknown race.
 
 ---
 
+## Weekend
+
+### GET /weekend/{race_id}
+One race weekend: every team's lineup and points, the weekend winner, and the
+qualifying order. Public; send a token to see your own lineup before lockdown
+and to have `is_current_user` set. Before lockdown only the viewer's lineup is
+returned (`hidden_lineups` counts the rest) and `picked_by` is `null`.
+
+Response `200`:
+```json
+{
+  "race": { "...": "same shape as GET /races/{id}" },
+  "locked": true,
+  "scored": true,
+  "winners": [ { "...": "lineup, as below" } ],
+  "lineups": [
+    {
+      "user_id": 2, "username": "FakeMikeGross", "is_current_user": true,
+      "rank": 1, "points": 935,
+      "elements": [
+        { "element_type": "driver", "element_id": 9, "name": "Charles Leclerc", "code": "LEC",
+          "color": "#E80020", "constructor_name": "Ferrari", "points": 166,
+          "quali_pos": 1, "race_pos": 1 },
+        { "element_type": "constructor", "element_id": 8, "name": "Ferrari", "code": null,
+          "color": "#E80020", "constructor_name": null, "points": 137,
+          "quali_pos": null, "race_pos": null }
+      ]
+    }
+  ],
+  "hidden_lineups": 0,
+  "qualifying": [
+    { "driver_id": 9, "driver_name": "Charles Leclerc", "code": "LEC", "constructor_name": "Ferrari",
+      "constructor_color": "#E80020", "quali_pos": 1, "quali_pts": 50, "picked_by": 3 }
+  ]
+}
+```
+- `lineups` covers every league member (an empty `elements` list = no team that
+  weekend), ranked by points once scored (ties share a rank), else by name.
+  `rank`/`points` are `null` until the race is scored.
+- `winners`: the top-ranked lineup(s) with a team, once scored; else `[]`.
+- `qualifying` is `[]` until qualifying results are ingested.
+
+Errors: `404` unknown race.
+
+---
+
 ## Admin  (protected, admin only — else `403`)
 
 ### POST /admin/seed

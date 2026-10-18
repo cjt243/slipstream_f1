@@ -65,7 +65,7 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 │   ├── schemas/             # Pydantic request/response models
 │   ├── services/            # Business logic: auth, email, openf1, seed, roster, races, results
 │   │                        # (ingestion), scoring (pure rules), salary, contracts, fantasy, weekend,
-│   │                        # notifications (lineup reminders)
+│   │                        # notifications (lineup reminders), race_weekend (weekend view)
 │   ├── data/                # salaries.py: default salary tables + season-start rankings
 │   ├── tests/               # pytest suite (conftest.py, test_*.py per service/route)
 │   ├── dependencies.py      # get_db, get_current_user, get_admin_user, get_optional_user
@@ -128,7 +128,8 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 
 ### Phase 2 — Enhancements
 - [ ] Live score updates during race weekends (immediately post-session)
-- [ ] A deeper focus on each weekend - a dedicated "Race" view that focuses on qualifying stats, team lineups, and a Race weekend "winner" - similar to how fantasy football is very week to week focused
+- [x] A deeper focus on each weekend - a dedicated "Race" view that focuses on qualifying stats, team lineups, and a Race weekend "winner" - similar to how fantasy football is very week to week focused
+  (Weekend tab, `GET /weekend/{race_id}`; other teams' lineups are revealed at lockdown)
 - [ ] Notifications related to deadlines for lineup locking, star drivers
   - [x] Lineup reminder email in the 24h before lockdown to members with an incomplete team (autopilot +
     `POST /admin/reminders`)
@@ -208,6 +209,7 @@ Exact shapes and error codes: [docs/api-contracts.md](docs/api-contracts.md) —
 | GET | `/scores/<race_id>/constructors` | Constructor scoring breakdown for a race |
 | GET | `/leaderboard` | Season standings (with team values) |
 | GET | `/leaderboard/<race_id>` | Single race standings |
+| GET | `/weekend/<race_id>` | Weekend view: lineups + points, winner, qualifying with pick counts |
 | POST | `/admin/seed` | Seed/refresh the season from OpenF1 (admin only) |
 | POST | `/admin/results` | Ingest + score a race and its fantasy teams from OpenF1 (admin only) |
 | POST | `/admin/salary-adjust` | Finalize a scored race: salaries, contract settlement, floor (admin only) |
