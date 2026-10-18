@@ -296,6 +296,20 @@ Response `200`:
 
 ## Admin  (protected, admin only — else `403`)
 
+### POST /admin/seed
+Seed or refresh a season's races, constructors and drivers from OpenF1, and
+make sure the default league exists. Idempotent: existing salaries are never
+changed. `season` defaults to the server's `SEASON`.
+
+Request:
+```json
+{ "season": 2026 }
+```
+Response `200`:
+```json
+{ "season": 2026, "constructors": 11, "drivers": 22, "races": 23, "league": "Slipstream League" }
+```
+
 ### POST /admin/results
 Ingest results for a race from OpenF1, then run scoring.
 

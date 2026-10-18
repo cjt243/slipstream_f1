@@ -162,6 +162,7 @@ Single-league design: all endpoints implicitly scoped to the default league.
 | GET | `/scores/<race_id>/constructors` | Constructor scoring breakdown for a race |
 | GET | `/leaderboard` | Season standings (with team values) |
 | GET | `/leaderboard/<race_id>` | Single race standings |
+| POST | `/admin/seed` | Seed/refresh the season from OpenF1 (admin only) |
 | POST | `/admin/results` | Submit race results (admin only) |
 | POST | `/admin/salary-adjust` | Trigger post-race salary recalc (admin only) |
 
@@ -245,9 +246,9 @@ Three environments — each uses a different database and cannot touch the other
 - `.github/workflows/ops.yml` runs a `server/cli.py` command against production Turso on manual dispatch
   (`command` choice + optional `args`). It applies migrations first and shares the `migrate-production`
   concurrency group, so it never overlaps a migration.
-- Use it for seeding and other admin data jobs — the libSQL driver can't authenticate from a Claude cloud
-  session, so production writes from code go through this workflow.
-- Seed production: dispatch `ops.yml` with `command=seed` after the PR that needs the data is merged.
+- The Claude GitHub integration can't dispatch workflows, and the libSQL driver can't authenticate from a
+  Claude cloud session. So Claude runs production admin jobs through the admin API (`/api/admin/*`, admin JWT)
+  instead; `ops.yml` is there for a person to dispatch from the Actions tab.
 
 ### Continuous Deployment (Vercel)
 - Merges to `main` auto-deploy to production via Vercel's GitHub integration; every PR gets a preview deployment
