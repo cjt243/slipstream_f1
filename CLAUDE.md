@@ -367,7 +367,7 @@ seed row for it to that test.
 - Test routes via FastAPI `TestClient` for integration coverage
 - Never mock the DB — always use the real in-memory SQLite fixture
 - Scoring and salary functions must be pure and unit-testable without a DB session where possible
-- Verify the frontend renders with Playwright: `uv run --with playwright python <script>` (run `playwright install chromium` once). Start the dev server first and wait for elements — the mock-data fallback loads async.
+- Verify the frontend renders with Playwright: `uv run --with playwright python <script>` (run `playwright install chromium` once). Start the API (`uv run uvicorn app:app --port 3001`, with a seeded `dev.db`) and the Vite dev server first, and wait for elements — data loads async. In a Claude cloud session Chromium lives in `/opt/pw-browsers`; pass its path as `executable_path`. To test signed-in pages, put a JWT for a local user (`services.auth.create_jwt`) in `localStorage['slipstream_jwt']`.
 
 ### React / Frontend
 - Functional components + hooks only

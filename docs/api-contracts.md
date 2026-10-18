@@ -1,8 +1,7 @@
 # Slipstream F1 — API Contracts (Phase 1)
 
 The agreed JSON request/response shapes for every Phase 1 endpoint. Backend
-implements these exactly; frontend codes against them (with mock data matching
-these shapes until the backend lands).
+implements these exactly; frontend codes against them.
 
 ## Conventions
 
