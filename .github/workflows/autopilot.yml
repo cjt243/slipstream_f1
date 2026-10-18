@@ -2,8 +2,9 @@ name: Race autopilot
 
 # Every two hours: refresh the calendar and grid from OpenF1, then ingest,
 # score and finalize (salaries, contract settlement, team-value floor) any
-# race whose results are due (server/cli.py autopilot). Safe to re-run; it
-# does nothing between race weekends. Can also be started by hand.
+# race whose results are due, and email lineup reminders in the 24h before the
+# next lockdown (server/cli.py autopilot). Safe to re-run; it does nothing
+# between race weekends. Can also be started by hand.
 on:
   schedule:
     - cron: "17 */2 * * *"
@@ -24,6 +25,11 @@ jobs:
     env:
       TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
       TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      # Lineup reminder emails. Without RESEND_API_KEY they're only logged
+      # (and not recorded, so a later run with the key still sends them).
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
     steps:
       - uses: actions/checkout@v6
 

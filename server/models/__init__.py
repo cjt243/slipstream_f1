@@ -5,7 +5,7 @@ autogenerate and for the test fixtures that create the schema.
 """
 
 from models.base import Base
-from models.enums import ContractStatus, ElementType, SessionType
+from models.enums import ContractStatus, ElementType, NotificationKind, SessionType
 from models.user import User
 from models.magic_token import MagicToken
 from models.league import League, LeagueMember, STARTING_BUDGET
@@ -16,11 +16,13 @@ from models.contract import Contract
 from models.results import ConstructorResult, DriverResult
 from models.scores import ConstructorScore, DriverScore, FantasyScore
 from models.salary_history import SalaryHistory
+from models.notification import Notification
 
 __all__ = [
     "Base",
     "ContractStatus",
     "ElementType",
+    "NotificationKind",
     "SessionType",
     "STARTING_BUDGET",
     "User",
@@ -37,4 +39,5 @@ __all__ = [
     "ConstructorScore",
     "FantasyScore",
     "SalaryHistory",
+    "Notification",
 ]

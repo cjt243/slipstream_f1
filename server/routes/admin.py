@@ -1,4 +1,5 @@
-"""Admin-only operations (seeding, results ingestion, salary adjustment)."""
+"""Admin-only operations (seeding, results ingestion, salary adjustment,
+lineup reminders)."""
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -7,12 +8,14 @@ from dependencies import AdminUser, DbSession, OpenF1
 from models import Race
 from schemas.admin import (
     RaceRequest,
+    RemindersResponse,
     ResultsResponse,
     SalaryAdjustResponse,
     SeedRequest,
     SeedResponse,
 )
 from services import races as race_service
+from services.notifications import reminder_due, send_lineup_reminders
 from services.results import process_race_results
 from services.weekend import finalize_race
 from services.seed import seed_all
@@ -64,3 +67,19 @@ def salary_adjust(body: RaceRequest, _: AdminUser, db: DbSession) -> SalaryAdjus
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     db.commit()
     return SalaryAdjustResponse(race_id=race.id, adjustments=count)
+
+
+@router.post("/reminders", response_model=RemindersResponse)
+def reminders(_: AdminUser, db: DbSession) -> RemindersResponse:
+    """Email members with an incomplete team for the current race, if its
+    lockdown is within 24h. Each member is reminded once per race."""
+    now = race_service.utcnow()
+    run = send_lineup_reminders(db, settings.season, now)
+    return RemindersResponse(
+        race_id=run.race.id if run.race else None,
+        race_name=run.race.name if run.race else None,
+        due=reminder_due(run.race, now),
+        sent=run.sent,
+        logged=run.logged,
+        failed=run.failed,
+    )

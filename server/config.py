@@ -8,7 +8,8 @@ DEV_SECRET_KEY = "dev-secret-change-me"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        # Empty values count as unset: CI passes unset secrets as "".
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", env_ignore_empty=True
     )
 
     # Server
