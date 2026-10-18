@@ -84,3 +84,23 @@ def test_register_rejects_blank_username(client, sent_links):
     r = client.post("/api/auth/register", json={"email": "a@example.com", "username": "   "})
     assert r.status_code == 422
     assert r.json()["error"].startswith("username:")
+
+
+def test_unhandled_errors_use_error_shape(db, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app import app
+    from dependencies import get_db
+    from services import auth as auth_service
+
+    def boom(*args: object) -> None:
+        raise RuntimeError("database exploded")
+
+    monkeypatch.setattr(auth_service, "verify_magic_token", boom)
+    app.dependency_overrides[get_db] = lambda: db
+    try:
+        r = TestClient(app, raise_server_exceptions=False).post("/api/auth/verify", json={"token": "x"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+    assert r.status_code == 500
+    assert r.json() == {"error": "Internal server error"}

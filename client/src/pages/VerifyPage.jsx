@@ -1,22 +1,49 @@
-import { Card, Label } from "../components/ui";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { C, FONT } from "../lib/tokens";
+import { api } from "../lib/api";
+import { Card } from "../components/ui";
+import AuthShell from "../components/AuthShell";
+import { useAuth } from "../context/AuthContext";
 
-// Placeholder. Issue 2B reads the token from the URL, calls /auth/verify,
-// stores the JWT, and redirects to /team.
+/** Landing page for the emailed link: exchanges ?token= for a JWT. */
 export default function VerifyPage() {
+  const [params] = useSearchParams();
+  const token = params.get("token");
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const [error, setError] = useState(token ? "" : "This sign-in link is missing its token.");
+  // Tokens are single-use; StrictMode runs effects twice in dev, so guard.
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!token || started.current) return;
+    started.current = true;
+    api
+      .post("/auth/verify", { token }, { auth: false })
+      .then((data) => {
+        login(data.token, data.user);
+        navigate("/team", { replace: true });
+      })
+      .catch((err) => setError(err.message));
+  }, [token, login, navigate]);
+
   return (
-    <div
-      className="min-h-screen w-full flex items-center justify-center px-4"
-      style={{ background: C.void, color: C.white, fontFamily: FONT.body }}
-    >
-      <div className="w-full max-w-sm">
-        <Label>Verifying</Label>
-        <Card>
-          <div style={{ fontSize: 13, color: C.muted, fontFamily: FONT.body }}>
-            Magic-link verification is implemented in issue 2B.
-          </div>
-        </Card>
-      </div>
-    </div>
+    <AuthShell label={error ? "Sign-In Failed" : "Signing In"}>
+      <Card accent={error ? C.danger : C.speed}>
+        {error ? (
+          <>
+            <div className="mb-4" role="alert" style={{ fontSize: 14, color: C.white }}>
+              {error}
+            </div>
+            <Link to="/login" style={{ fontSize: 11, fontFamily: FONT.mono, color: C.speed, textDecoration: "none" }}>
+              REQUEST A NEW LINK →
+            </Link>
+          </>
+        ) : (
+          <div style={{ fontSize: 14, color: C.muted }}>Verifying your link…</div>
+        )}
+      </Card>
+    </AuthShell>
   );
 }
