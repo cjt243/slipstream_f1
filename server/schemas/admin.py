@@ -13,3 +13,13 @@ class SeedResponse(BaseModel):
     drivers: int
     races: int
     league: str
+
+
+class RaceRequest(BaseModel):
+    race_id: int
+
+
+class ResultsResponse(BaseModel):
+    race_id: int
+    drivers_scored: int
+    constructors_scored: int
