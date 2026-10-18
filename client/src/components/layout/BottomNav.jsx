@@ -3,6 +3,7 @@ import { C, FONT } from "../../lib/tokens";
 
 const TABS = [
   { to: "/team", label: "TEAM" },
+  { to: "/weekend", label: "WEEKEND" },
   { to: "/races", label: "RACES" },
   { to: "/leaderboard", label: "TABLE" },
 ];

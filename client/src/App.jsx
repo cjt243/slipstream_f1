@@ -8,6 +8,7 @@ import TeamPage from "./pages/TeamPage";
 import RacesPage from "./pages/RacesPage";
 import RaceDetailPage from "./pages/RaceDetailPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
+import WeekendPage from "./pages/WeekendPage";
 
 export default function App() {
   return (
@@ -23,6 +24,8 @@ export default function App() {
               <Route path="/races" element={<RacesPage />} />
               <Route path="/race/:id" element={<RaceDetailPage />} />
               <Route path="/leaderboard" element={<LeaderboardPage />} />
+              <Route path="/weekend" element={<WeekendPage />} />
+              <Route path="/weekend/:id" element={<WeekendPage />} />
             </Route>
           </Route>
 

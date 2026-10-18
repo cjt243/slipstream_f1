@@ -33,6 +33,10 @@ def get_race(race_id: int, db: DbSession) -> RaceDetailResponse:
     race = race_service.get_race(db, race_id)
     if race is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Race not found")
+    return race_detail(db, race)
+
+
+def race_detail(db: DbSession, race: Race) -> RaceDetailResponse:
     has_results = race.id in race_service.races_with_results(db, [race.id])
     race_status = race_service.race_status(race, has_results, race_service.utcnow())
     return RaceDetailResponse(
