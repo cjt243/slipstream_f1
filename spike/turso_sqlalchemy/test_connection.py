@@ -137,11 +137,13 @@ def test_turso():
 
     # Convert libsql:// to the sqlalchemy-libsql format
     # Turso URLs: libsql://your-db.turso.io
-    # SQLAlchemy:  sqlite+libsql://your-db.turso.io?authToken=xxx&secure=true
+    # SQLAlchemy:  sqlite+libsql://your-db.turso.io?secure=true
+    # The token must go in connect_args: libsql_experimental ignores
+    # ?authToken= in the URL and sends an empty bearer token.
     sa_url = url.replace("libsql://", "sqlite+libsql://")
-    sa_url += f"?authToken={token}&secure=true"
+    sa_url += "?secure=true"
 
-    engine = create_engine(sa_url, echo=False)
+    engine = create_engine(sa_url, echo=False, connect_args={"auth_token": token})
 
     try:
         test_crud(engine)

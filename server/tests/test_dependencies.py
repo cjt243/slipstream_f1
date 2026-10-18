@@ -1,9 +1,10 @@
-"""Engine configuration: Turso URL / auth token resolution (no network)."""
+"""Startup configuration: Turso URL / auth token and secret-key guards (no network)."""
 
 import pytest
+from pydantic import ValidationError
 
 import dependencies
-from config import settings
+from config import Settings, settings
 
 
 @pytest.fixture
@@ -33,3 +34,13 @@ def test_token_without_url_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "turso_auth_token", "tok123")
     with pytest.raises(RuntimeError):
         dependencies._build_db_url()
+
+
+def test_dev_secret_key_is_refused_on_vercel(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    with pytest.raises(ValidationError, match="SECRET_KEY"):
+        Settings(_env_file=None)
+
+    monkeypatch.setenv("SECRET_KEY", "a-real-secret")
+    assert Settings(_env_file=None).secret_key == "a-real-secret"

@@ -38,6 +38,14 @@ Response `200`:
 ```json
 { "message": "If that email is valid, a magic link has been sent." }
 ```
+The username is only used when creating a new account; an existing account's
+username is never changed by this endpoint.
+
+Errors: `422` invalid email or blank username (e.g. `{"error": "email: Enter a valid email address"}`);
+`502` the email provider failed.
+
+The emailed link is `<FRONTEND_URL>/auth/verify?token=<raw token>`, valid for
+15 minutes and single-use.
 
 ### POST /auth/verify
 Exchange a magic-link token for a JWT. Token is single-use.
