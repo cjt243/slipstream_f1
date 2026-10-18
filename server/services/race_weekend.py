@@ -1,13 +1,13 @@
-"""One race weekend at a glance: every team's lineup and points, the
-weekend winner, and the qualifying order with how many teams picked each
-driver.
+"""One race weekend at a glance: every team's lineup and points, its moves
+since the previous round, the weekend winner, and the qualifying order with
+how many teams picked each driver.
 
 Lineups are secret until lockdown: before it, a viewer sees only their own
 team and no pick counts. Points are live once qualifying is scored; the winner
 is crowned only when the race result is in (``final``).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from models import (
     Constructor,
     ConstructorScore,
     Contract,
+    ContractStatus,
     Driver,
     DriverResult,
     DriverScore,
@@ -45,12 +46,33 @@ class LineupElement:
 
 
 @dataclass(frozen=True)
+class Move:
+    element_type: ElementType
+    element_id: int
+    name: str
+    code: str | None
+    color: str | None
+    signed_salary: int
+    contract_length: int
+    status: ContractStatus  # ACTIVE: signed for this round; RELEASED / EXPIRED: gone since the last
+
+
+@dataclass(frozen=True)
+class Moves:
+    """How a team changed from the previous round to this one."""
+    signed: list[Move]  # contracts starting this round
+    dropped: list[Move]  # on the team last round, not this one
+    kept: int  # contracts carried over
+
+
+@dataclass(frozen=True)
 class Lineup:
     user: User
     rank: int | None  # None until the race is scored
     points: int | None
     elements: list[LineupElement]
     floor_applied: bool = False  # incomplete lineup raised to the minimum score
+    moves: Moves = field(default_factory=lambda: Moves([], [], 0))
 
 
 @dataclass(frozen=True)
@@ -74,13 +96,18 @@ class Weekend:
     qualifying: list[QualiEntry]  # empty until qualifying results are in
 
 
+def _move_order(m: Move) -> tuple[bool, int, str]:
+    """Drivers first, priciest first."""
+    return m.element_type != ElementType.DRIVER, -m.signed_salary, m.name
+
+
 def _ranked(lineups: list[Lineup]) -> list[Lineup]:
     """Order by points (ties share a rank: 1, 2, 2, 4), then username."""
     ordered = sorted(lineups, key=lambda lu: (-(lu.points or 0), lu.user.username.lower()))
     out: list[Lineup] = []
     for i, lu in enumerate(ordered):
         rank = out[-1].rank if out and out[-1].points == lu.points else i + 1
-        out.append(Lineup(lu.user, rank, lu.points, lu.elements, lu.floor_applied))
+        out.append(Lineup(lu.user, rank, lu.points, lu.elements, lu.floor_applied, lu.moves))
     return out
 
 
@@ -104,6 +131,10 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
     for c in contracts_for_round(db, race.round):
         if c.league_id == league_id:
             by_user.setdefault(c.user_id, []).append(c)
+    prev_by_user: dict[int, list[Contract]] = {}
+    for c in contracts_for_round(db, race.round - 1):
+        if c.league_id == league_id:
+            prev_by_user.setdefault(c.user_id, []).append(c)
 
     def element(c: Contract) -> LineupElement:
         if c.element_type == ElementType.DRIVER:
@@ -123,13 +154,36 @@ def race_weekend(db: Session, race: Race, league_id: int, viewer: User | None,
             None, team_pts.get(c.element_id, 0) if scored else None, None, None,
         )
 
+    def move(c: Contract, status: ContractStatus) -> Move:
+        if c.element_type == ElementType.DRIVER:
+            d = drivers.get(c.element_id)
+            team = teams.get(d.constructor_id) if d and d.constructor_id else None
+            name, code = (d.name, d.code) if d else ("Unknown", None)
+        else:
+            team = teams.get(c.element_id)
+            name, code = (team.name if team else "Unknown"), None
+        return Move(c.element_type, c.element_id, name, code, team.color if team else None,
+                    c.signed_salary, c.contract_length, status)
+
+    def moves(user: User) -> Moves:
+        current = by_user.get(user.id, [])
+        current_ids = {c.id for c in current}
+        signed = sorted((move(c, ContractStatus.ACTIVE) for c in current if c.race_start == race.round),
+                        key=_move_order)
+        dropped = sorted(
+            (move(c, ContractStatus.RELEASED if c.released_early else ContractStatus.EXPIRED)
+             for c in prev_by_user.get(user.id, []) if c.id not in current_ids),
+            key=_move_order,
+        )
+        return Moves(signed, dropped, len(current) - len(signed))
+
     def lineup(user: User) -> Lineup:
         contracts = by_user.get(user.id, [])
         elements = sorted((element(c) for c in contracts),
                           key=lambda e: (e.element_type != ElementType.DRIVER, -(e.points or 0), e.name))
         row = fantasy.get(user.id)
         points = (row.total_points if row else 0) if scored else None
-        return Lineup(user, None, points, elements, bool(row and row.floor_applied))
+        return Lineup(user, None, points, elements, bool(row and row.floor_applied), moves(user))
 
     members = (
         db.query(User)

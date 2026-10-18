@@ -1,10 +1,10 @@
-"""Race weekend view: lineup visibility, points, winner and qualifying."""
+"""Race weekend view: lineup visibility, points, moves, winner and qualifying."""
 
 from datetime import timedelta
 
 import pytest
 
-from models import ConstructorScore, Contract, DriverResult, DriverScore, ElementType, FantasyScore
+from models import ConstructorScore, Contract, ContractStatus, DriverResult, DriverScore, ElementType, FantasyScore
 from services import races
 from services.contracts import get_membership
 from services.race_weekend import race_weekend
@@ -84,6 +84,47 @@ def test_scored_weekend_ranks_teams_and_crowns_winners(db, weekend):
         ("LEC", 1, 50, 1), ("NOR", 2, 48, 2), ("PIA", 3, 46, 0)]
 
 
+def _moves(lineup):
+    m = lineup.moves
+    return ([(x.code or x.name, x.status) for x in m.signed], [(x.code or x.name, x.status) for x in m.dropped],
+            m.kept)
+
+
+def test_first_round_moves_are_all_signings(db, weekend):
+    w = race_weekend(db, weekend["r1"], weekend["league_id"], None, NOW)
+    alice, bob, cara = w.lineups
+    assert _moves(alice) == ([("NOR", ContractStatus.ACTIVE), ("Ferrari", ContractStatus.ACTIVE)], [], 0)
+    assert _moves(bob) == ([("LEC", ContractStatus.ACTIVE), ("NOR", ContractStatus.ACTIVE)], [], 0)
+    assert _moves(cara) == ([], [], 0)
+
+
+def test_moves_since_previous_round(db, weekend):
+    """Round 2: Alice releases NOR and signs PIA; Bob's one-race PIA expires;
+    Cara signs her first team."""
+    lid, alice, bob, cara = weekend["league_id"], weekend["alice"], weekend["bob"], weekend["cara"]
+    nor = db.query(Contract).filter_by(user_id=alice.id, element_id=weekend["nor"].id).one()
+    nor.released_early, nor.released_at_race = True, 1
+    db.add(Contract(user_id=alice.id, league_id=lid, element_type=ElementType.DRIVER,
+                    element_id=weekend["pia"].id, race_start=2, contract_length=3, signed_salary=20_000_000))
+    db.add(Contract(user_id=bob.id, league_id=lid, element_type=ElementType.DRIVER, element_id=weekend["pia"].id,
+                    race_start=1, contract_length=1, signed_salary=1))
+    db.add(Contract(user_id=cara.id, league_id=lid, element_type=ElementType.CONSTRUCTOR,
+                    element_id=weekend["mclaren"].id, race_start=2, contract_length=1, signed_salary=1))
+    db.flush()
+
+    w = race_weekend(db, weekend["r2"], lid, None, NOW + timedelta(days=3))  # after round 2 locks
+    by_name = {lu.user.username: lu for lu in w.lineups}
+    assert _moves(by_name["alice"]) == ([("PIA", ContractStatus.ACTIVE)], [("NOR", ContractStatus.RELEASED)], 1)
+    signed = by_name["alice"].moves.signed[0]
+    assert (signed.signed_salary, signed.contract_length, signed.color) == (20_000_000, 3, "#FF8000")
+    assert _moves(by_name["bob"]) == ([], [("PIA", ContractStatus.EXPIRED)], 2)
+    assert _moves(by_name["cara"]) == ([("McLaren", ContractStatus.ACTIVE)], [], 0)
+
+    before = race_weekend(db, weekend["r2"], lid, alice, NOW)  # before lockdown: only your own moves
+    assert [lu.user.username for lu in before.lineups] == ["alice"]
+    assert _moves(before.lineups[0]) == _moves(by_name["alice"])
+
+
 def test_weekend_route(client, db, weekend):
     _score(db, weekend)
     r = client.get(f"/api/weekend/{weekend['r1'].id}", headers=auth_header(weekend["alice"]))
@@ -97,6 +138,16 @@ def test_weekend_route(client, db, weekend):
         "element_type": "driver", "element_id": weekend["nor"].id, "name": "Lando Norris", "code": "NOR",
         "color": "#FF8000", "constructor_name": "McLaren", "points": 140, "quali_pos": 2, "race_pos": 2,
         "is_star": False}
+    assert body["lineups"][0]["moves"] == {
+        "signed": [
+            {"element_type": "driver", "element_id": weekend["nor"].id, "name": "Lando Norris", "code": "NOR",
+             "color": "#FF8000", "signed_salary": 1, "contract_length": 2, "status": "active"},
+            {"element_type": "constructor", "element_id": weekend["ferrari"].id, "name": "Ferrari", "code": None,
+             "color": "#E80020", "signed_salary": 1, "contract_length": 2, "status": "active"},
+        ],
+        "dropped": [],
+        "kept": 0,
+    }
     assert body["qualifying"][0]["driver_name"] == "Charles Leclerc"
 
     upcoming = client.get(f"/api/weekend/{weekend['r2'].id}").json()

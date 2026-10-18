@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel
 
-from models import ElementType
+from models import ContractStatus, ElementType
 from schemas.races import RaceDetailResponse
 
 
@@ -19,6 +19,23 @@ class LineupElementResponse(BaseModel):
     is_star: bool  # star driver; points are already doubled
 
 
+class MoveResponse(BaseModel):
+    element_type: ElementType
+    element_id: int
+    name: str
+    code: str | None
+    color: str | None
+    signed_salary: int
+    contract_length: int
+    status: ContractStatus  # active: signed this round; released / expired: dropped
+
+
+class MovesResponse(BaseModel):
+    signed: list[MoveResponse]
+    dropped: list[MoveResponse]
+    kept: int
+
+
 class LineupResponse(BaseModel):
     user_id: int
     username: str
@@ -27,6 +44,7 @@ class LineupResponse(BaseModel):
     points: int | None
     floor_applied: bool  # incomplete lineup: points raised to the minimum
     elements: list[LineupElementResponse]
+    moves: MovesResponse  # changes since the previous round
 
 
 class QualiEntryResponse(BaseModel):

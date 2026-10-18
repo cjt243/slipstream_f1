@@ -364,8 +364,8 @@ Errors: `404` unknown race.
 ## Weekend
 
 ### GET /weekend/{race_id}
-One race weekend: every team's lineup and points, the weekend winner, and the
-qualifying order. Public; send a token to see your own lineup before lockdown
+One race weekend: every team's lineup, points and moves, the weekend winner,
+and the qualifying order. Public; send a token to see your own lineup before lockdown
 and to have `is_current_user` set. Before lockdown only the viewer's lineup is
 returned (`hidden_lineups` counts the rest) and `picked_by` is `null`.
 
@@ -388,7 +388,18 @@ Response `200`:
         { "element_type": "constructor", "element_id": 8, "name": "Ferrari", "code": null,
           "color": "#E80020", "constructor_name": null, "points": 137,
           "quali_pos": null, "race_pos": null, "is_star": false }
-      ]
+      ],
+      "moves": {
+        "signed": [
+          { "element_type": "driver", "element_id": 9, "name": "Charles Leclerc", "code": "LEC",
+            "color": "#E80020", "signed_salary": 24000000, "contract_length": 3, "status": "active" }
+        ],
+        "dropped": [
+          { "element_type": "driver", "element_id": 4, "name": "Lewis Hamilton", "code": "HAM",
+            "color": "#E80020", "signed_salary": 21300000, "contract_length": 3, "status": "released" }
+        ],
+        "kept": 5
+      }
     }
   ],
   "hidden_lineups": 0,
@@ -406,6 +417,10 @@ Response `200`:
   a winner.
 - `winners`: the top-ranked lineup(s) with a team, once `final`; else `[]`.
 - `is_star`: the owner's star driver; its `points` are already doubled.
+- `moves`: how the team changed since the previous round. `signed` = contracts
+  starting this round (`status` `active`); `dropped` = on the team last round
+  but not this one (`released` early or `expired`); `kept` = contracts carried
+  over. Same visibility as the lineup (others' appear at lockdown).
 - `floor_applied`: the lineup was incomplete or empty, so its points were
   raised to the minimum (600, capped at the lowest complete team's score;
   only once `final`).

@@ -23,10 +23,10 @@ We are building an F1 Fantasy League web application — a mobile-first, respons
 - The league plays the **2026 season** (`SEASON=2026`) and joins it at round 18 (US GP, lockdown Sat Oct 24
   21:00 UTC). Rounds 1–17 were ingested and scored, and salaries were replayed through all 17 so they reflect the
   season so far. League points start at round 18; earlier races have driver/constructor scores only.
-- Production has 2 users (`Sad_Charlie` — the owner, user id 1, admin — and `FakeMikeGross`) and no contracts yet.
+- Production has 2 users (`Sad_Charlie` — the owner, user id 1, admin — and `FakeMikeGross`), both signing teams for round 18.
 - Race weekends run hands-off via the autopilot workflow (see CI/CD). The first real end-to-end run of fantasy
   scoring, contract settlement and the leaderboard happens after the US GP (Oct 25).
-- Next up: Phase 2 (below).
+- Phase 2 is complete. Next up: Phase 3 (below).
 
 ---
 
@@ -150,7 +150,8 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for OpenF1 API endpoint mapping to app fe
 ### Phase 3 — Polish
 - [ ] Animated score reveals post-race
 - [ ] Potentially a post-weekend graphic that shows how fantasy teams trended throughout the weekend events by total points scored (line chart that accumulates points by fantasy team)
-- [ ] Weekly team move summaries once lineups lock
+- [x] Weekly team move summaries once lineups lock
+  (Weekend tab → Moves: signings, releases/expiries and star pick per team; `moves` on `GET /weekend/{race_id}`)
 
 ---
 
@@ -226,7 +227,7 @@ Exact shapes and error codes: [docs/api-contracts.md](docs/api-contracts.md) —
 | GET | `/scores/<race_id>/constructors` | Constructor scoring breakdown for a race |
 | GET | `/leaderboard` | Season standings (with team values) |
 | GET | `/leaderboard/<race_id>` | Single race standings |
-| GET | `/weekend/<race_id>` | Weekend view: lineups + points, winner, qualifying with pick counts |
+| GET | `/weekend/<race_id>` | Weekend view: lineups + points + moves, winner, qualifying with pick counts |
 | POST | `/admin/seed` | Seed/refresh the season from OpenF1 (admin only) |
 | POST | `/admin/results` | Ingest + score a race and its fantasy teams from OpenF1; before the race, live quali/sprint (admin only) |
 | POST | `/admin/salary-adjust` | Finalize a scored race: salaries, contract settlement, floor (admin only) |
